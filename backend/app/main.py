@@ -8,7 +8,7 @@ from sqlalchemy import text
 from . import models, database, routes
 from .logging_utils import log_requests
 from .tracking import router as tracking_router
-# Scheduler module removed
+from .scheduler import router as scheduler_router, init_scheduler, shutdown_scheduler
 
 # -------------------- Logging --------------------
 logging.basicConfig(
@@ -64,7 +64,8 @@ app.include_router(routes.router)
 app.include_router(tracking_router)
 logger.info("API routes registered")
 
-# Scheduler endpoints removed
+# Include scheduler endpoints
+app.include_router(scheduler_router)
 
 # -------------------- Dependencies --------------------
 def get_db():
@@ -105,11 +106,13 @@ async def startup_event():
     logger.info("Application startup: waiting for database")
     wait_for_db()
     create_tables()
-    # Scheduler removed
+    # Initialize scheduler
+    init_scheduler()
     logger.info("Application ready to receive requests")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Application shutting down")
-    # Scheduler removed
+    # Shutdown scheduler
+    shutdown_scheduler()
     logger.info("Email scheduler shutdown complete")
