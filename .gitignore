@@ -1,0 +1,71 @@
+# Environment variables - these contain sensitive info that shouldn't be in the repo
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Python cache and build artifacts - not code
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# Python virtual environments - not code
+.venv/
+venv/
+ENV/
+env/
+
+# Python package build directories - not code
+dist/
+build/
+*.egg-info/
+
+# JavaScript/Node dependencies - not code
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Frontend build output - generated files, not source code
+frontend/dist/
+frontend/.cache/
+
+# Backend cache - not code
+backend/**/__pycache__/
+
+# IDE settings - personal preferences, not code
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Database files - data, not code
+*.sqlite
+*.db
+
+# Logs - generated files, not code
+logs/
+*.log
+
+# Docker volumes - data, not code
+.docker/
+docker-volumes/
+
+# System files - not code
+.DS_Store
+thumbs.db
+
+# IMPORTANT: All your actual code will be included in the repo:
+# - All .py files (except those in __pycache__)
+# - All .js, .jsx, .ts, .tsx files
+# - All configuration files like package.json, requirements.txt, etc.
