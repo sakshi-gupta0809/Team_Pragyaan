@@ -5,6 +5,7 @@ import {
   Send
 } from 'lucide-react';
 import ContactsPage from './ContactsPage';
+import CampaignsInterface from './CampaignsInterface';
 
 const Dashboard = () => {
   const [activeSection, setActiveSection] = useState('dashboard');
@@ -409,7 +410,7 @@ const handleAddContact = async () => {
   const renderContent = () => {
     switch(activeSection) {
       case 'campaigns':
-        return <SectionCard title="Recent Campaigns" data={recentCampaigns} />;
+        return <CampaignsInterface />;
       case 'contacts':
         return <ContactsPage />;
       case 'calendar':
@@ -753,21 +754,8 @@ const DashboardHome = ({ stats, recentCampaigns, activeTimer, toggleTimer, timer
 
     <SectionCard title="Recent Campaigns" data={recentCampaigns} />
     
-    {/* Time Tracker */}
-    <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-4 text-white shadow-lg mt-6 max-w-md mx-auto">
-      <h3 className="text-lg font-semibold mb-4">Time Tracker</h3>
-      <div className="text-center">
-        <div className="text-3xl font-bold mb-4">{timerTime}</div>
-        <div className="flex items-center justify-center space-x-3">
-          <button onClick={toggleTimer} className="w-12 h-12 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-xl flex items-center justify-center transition-all duration-200 backdrop-blur-sm">
-            {activeTimer ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-          </button>
-          <button className="w-12 h-12 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-xl flex items-center justify-center transition-all duration-200 backdrop-blur-sm">
-            <Square className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-    </div>
+   
+    
   </>
 );
 

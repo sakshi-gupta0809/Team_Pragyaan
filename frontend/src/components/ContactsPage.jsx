@@ -44,7 +44,7 @@ const ContactsPage = () => {
         params.append('page', currentPage);
         params.append('page_size', pageSize);
 
-        const response = await fetch(`http://localhost:8000/contacts?${params.toString()}`, {
+        const response = await fetch(`http://localhost:8000/api/contacts?${params.toString()}`, {
           mode: 'cors'
         });
 
@@ -79,7 +79,7 @@ const ContactsPage = () => {
   useEffect(() => {
     const fetchCampaigns = async () => {
       try {
-        const response = await fetch('http://localhost:8000/campaigns', {
+        const response = await fetch('http://localhost:8000/api/campaigns', {
           mode: 'cors'
         });
         

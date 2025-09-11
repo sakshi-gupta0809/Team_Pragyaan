@@ -1,13 +1,13 @@
-# backend/app/api/contacts.py
+# backend/app/api_contacts.py
 from typing import Optional
 from fastapi import APIRouter, Query, Depends
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, desc, asc
 from math import ceil
 
-from app.schemas import ContactsListOut, ContactOut
-from app.models import Contact, Campaign
-from app.database import get_db  # adapt to your project
+from .schemas import ContactsListOut, ContactOut
+from .models import Contact, Campaign
+from .database import get_db
 
 router = APIRouter()
 
@@ -24,8 +24,14 @@ def list_contacts(
     sort_dir: str = Query("desc", regex="^(asc|desc)$"),
     db: Session = Depends(get_db),
 ):
-    q = db.query(Contact).options(joinedload(Contact.campaign))
+    # Use select_from and outerjoin instead of options(joinedload) to have more control over what columns are selected
+    q = db.query(
+        Contact,
+        Campaign.id.label("campaign_id"),
+        Campaign.name.label("campaign_name"),
+    ).select_from(Contact).outerjoin(Campaign, Contact.campaign_id == Campaign.id)
 
+    # Apply filters
     if campaign_id:
         q = q.filter(Contact.campaign_id == campaign_id)
 
@@ -38,8 +44,20 @@ def list_contacts(
         term = f"%{search}%"
         q = q.filter(or_(Contact.name.ilike(term), Contact.email.ilike(term)))
 
-    total = q.count()
+    # Create a query for counting total records (without joins for efficiency)
+    count_q = db.query(Contact)
+    if campaign_id:
+        count_q = count_q.filter(Contact.campaign_id == campaign_id)
+    if status == "subscribed":
+        count_q = count_q.filter(Contact.unsubscribed == False)
+    elif status == "unsubscribed":
+        count_q = count_q.filter(Contact.unsubscribed == True)
+    if search:
+        count_q = count_q.filter(or_(Contact.name.ilike(f"%{search}%"), Contact.email.ilike(f"%{search}%")))
+    
+    total = count_q.count()
 
+    # Apply sorting
     if sort_by not in ALLOWED_SORT_BY:
         sort_by = "id"
     sort_col = getattr(Contact, sort_by)
@@ -50,14 +68,17 @@ def list_contacts(
     items = q.offset(offset).limit(page_size).all()
 
     contacts_out = []
-    for c in items:
+    for row in items:
+        contact = row[0]  # The Contact object
+        campaign_name = row.campaign_name  # From the Campaign alias
+        
         contacts_out.append(ContactOut(
-            id=c.id,
-            name=c.name,
-            email=c.email,
-            campaign_name=c.campaign.name if c.campaign else None,
-            unsubscribed=bool(c.unsubscribed),
-            linkedin_url=c.linkedin_url
+            id=contact.id,
+            name=contact.name,
+            email=contact.email,
+            campaign_name=campaign_name,
+            unsubscribed=bool(contact.unsubscribed),
+            linkedin_url=contact.linkedin_url
         ))
 
     total_pages = ceil(total / page_size) if page_size else 1

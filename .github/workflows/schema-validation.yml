@@ -1,0 +1,45 @@
+name: Database Schema Validation
+
+on:
+  push:
+    branches: [ main, master, develop ]
+    paths:
+      - 'backend/app/models.py'
+      - 'backend/migrations/**'
+  pull_request:
+    branches: [ main, master, develop ]
+    paths:
+      - 'backend/app/models.py'
+      - 'backend/migrations/**'
+  # Allow manual triggering
+  workflow_dispatch:
+
+jobs:
+  validate-schema:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+      
+    - name: Set up Docker Compose
+      run: |
+        docker-compose -f docker-compose.yml up -d db
+        # Wait for the database to be ready
+        sleep 10
+        
+    - name: Apply migrations
+      run: |
+        docker-compose -f docker-compose.yml run --rm backend bash -c "cd /app && alembic upgrade head"
+        
+    - name: Run schema validation test
+      run: |
+        docker-compose -f docker-compose.yml run --rm backend bash -c "cd /app && python -m tests.test_schema_validation"
+        
+    - name: Check for pending migrations
+      run: |
+        # This checks if there are any model changes that need migrations
+        docker-compose -f docker-compose.yml run --rm backend bash -c "cd /app && alembic revision --autogenerate -m 'CI check' --check"
+        
+    - name: Stop containers
+      if: always()
+      run: docker-compose -f docker-compose.yml down

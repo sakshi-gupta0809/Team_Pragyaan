@@ -38,6 +38,14 @@ class Campaign(Base):
     name = Column(String, index=True)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    status = Column(String, default="draft", index=True)  # draft, sent, scheduled, paused
+    
+    # Campaign metrics
+    recipient_count = Column(Integer, default=0)
+    open_count = Column(Integer, default=0)
+    click_count = Column(Integer, default=0)
+    unsubscribe_count = Column(Integer, default=0)
 
     # Relationships
     owner_id = Column(Integer, ForeignKey("users.id"))

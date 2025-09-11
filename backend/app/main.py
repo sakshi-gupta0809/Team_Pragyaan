@@ -5,10 +5,16 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from . import models, database, routes, routes_contacts
+from . import models, database, routes
 from .logging_utils import log_requests
 from .tracking import router as tracking_router
 from .scheduler import router as scheduler_router, init_scheduler, shutdown_scheduler
+import sys
+import os
+
+# Import the local API routers (moved into app directory to avoid import issues)
+from .api_campaigns import router as campaigns_router
+from .api_contacts import router as contacts_api_router
 
 # -------------------- Logging --------------------
 logging.basicConfig(
@@ -61,8 +67,21 @@ def create_tables():
 
 # -------------------- API Routes --------------------
 app.include_router(routes.router)
-app.include_router(routes_contacts.router)
 app.include_router(tracking_router)
+app.include_router(contacts_api_router, prefix="/api", tags=["contacts"])
+app.include_router(campaigns_router, prefix="/api", tags=["campaigns"])
+
+# Add a debug endpoint at the root level
+@app.get("/api/debug")
+def api_debug():
+    return {
+        "message": "API is working",
+        "endpoints": [
+            "/api/campaigns/debug",
+            "/api/campaigns/",
+            "/api/campaigns/paginated/"
+        ]
+    }
 logger.info("API routes registered")
 
 # Include scheduler endpoints

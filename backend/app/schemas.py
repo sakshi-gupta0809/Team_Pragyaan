@@ -60,11 +60,32 @@ class PaginatedContacts(BaseModel):
     page_size: int
     contacts: List[ContactResponse]
 
+# Added for API compatibility
+class ContactOut(BaseModel):
+    id: int
+    name: str
+    email: EmailStr
+    campaign_name: Optional[str]
+    unsubscribed: bool
+    linkedin_url: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+# Added for API compatibility
+class ContactsListOut(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    contacts: List[ContactOut]
+
 
 # -------------------- Campaign --------------------
 class CampaignCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    status: Optional[str] = "draft"
 
 
 class Campaign(BaseModel):
@@ -72,10 +93,37 @@ class Campaign(BaseModel):
     name: str
     description: Optional[str]
     created_at: datetime
+    updated_at: datetime
+    status: str = "draft"
+    recipient_count: int = 0
+    open_count: int = 0
+    click_count: int = 0
+    unsubscribe_count: int = 0
     contacts: List[Contact] = []
 
     class Config:
         orm_mode = True
+
+
+class CampaignResponse(BaseModel):
+    id: str
+    name: str
+    status: str
+    last_edited: str
+    recipients: str
+    opens: str
+    clicks: str
+    unsubscribed: str
+
+    class Config:
+        orm_mode = True
+
+
+class PaginatedCampaigns(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    campaigns: List[CampaignResponse]
 
 
 # -------------------- Email Template --------------------
