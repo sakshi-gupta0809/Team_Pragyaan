@@ -22,11 +22,11 @@ class Contact(Base):
     name = Column(String, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     linkedin_url = Column(String, nullable=True)
-    extra_data = Column(JSON, nullable=True)  # store phone, company, twitter, etc.
-    unsubscribed = Column(Boolean, default=False)  # New: unsubscribe flag
+    extra_data = Column(JSON, nullable=True)  # store phone, company, etc.
+    unsubscribed = Column(Boolean, default=False)  # unsubscribe flag
 
     # Relationships
-    campaign_id = Column(Integer, ForeignKey("campaigns.id"))
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True)
     campaign = relationship("Campaign", back_populates="contacts")
 
 
@@ -73,14 +73,14 @@ class EmailLog(Base):
     sent_at = Column(DateTime(timezone=True), nullable=True)
 
     # AI Enhancements
-    predicted_best_time = Column(DateTime(timezone=True), nullable=True)  # Delivery AI
-    engagement_score = Column(Float, nullable=True)  # Engagement AI (open/click prediction)
-    compliance_flags = Column(JSON, nullable=True)  # Compliance AI (spam risk, GDPR checks)
+    predicted_best_time = Column(DateTime(timezone=True), nullable=True)
+    engagement_score = Column(Float, nullable=True)
+    compliance_flags = Column(JSON, nullable=True)
 
     # Tracking / Email Analytics
-    is_opened = Column(Boolean, default=False)  # Opened tracking
-    is_clicked = Column(Boolean, default=False)  # Clicked tracking
-    unsubscribe_clicked = Column(Boolean, default=False)  # Unsubscribe click
+    is_opened = Column(Boolean, default=False)
+    is_clicked = Column(Boolean, default=False)
+    unsubscribe_clicked = Column(Boolean, default=False)
 
     campaign_id = Column(Integer, ForeignKey("campaigns.id"))
     campaign = relationship("Campaign", back_populates="emails")
@@ -112,5 +112,5 @@ class FollowUp(Base):
     campaign_id = Column(Integer, ForeignKey("campaigns.id"))
     campaign = relationship("Campaign", back_populates="followups")
 
-    parent_email_id = Column(Integer, ForeignKey("email_logs.id"))  # link to an original email
+    parent_email_id = Column(Integer, ForeignKey("email_logs.id"))
     parent_email = relationship("EmailLog")

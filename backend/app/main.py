@@ -5,7 +5,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from . import models, database, routes
+from . import models, database, routes, routes_contacts
 from .logging_utils import log_requests
 from .tracking import router as tracking_router
 from .scheduler import router as scheduler_router, init_scheduler, shutdown_scheduler
@@ -61,6 +61,7 @@ def create_tables():
 
 # -------------------- API Routes --------------------
 app.include_router(routes.router)
+app.include_router(routes_contacts.router)
 app.include_router(tracking_router)
 logger.info("API routes registered")
 

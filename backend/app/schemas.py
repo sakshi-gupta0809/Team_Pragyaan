@@ -22,6 +22,8 @@ class ContactCreate(BaseModel):
     name: str
     email: EmailStr
     linkedin_url: Optional[str] = None
+    unsubscribed: bool = False
+    campaign_id: Optional[int] = None
     extra_data: Optional[Dict[str, Any]] = None  # flexible info (phone, company, etc.)
 
 
@@ -30,10 +32,33 @@ class Contact(BaseModel):
     name: str
     email: EmailStr
     linkedin_url: Optional[str]
+    unsubscribed: bool
+    campaign_id: Optional[int]
     extra_data: Optional[Dict[str, Any]]
 
     class Config:
         orm_mode = True
+
+
+# Contact Response (for table in frontend)
+class ContactResponse(BaseModel):
+    id: int
+    name: str
+    email: EmailStr
+    campaign_name: Optional[str]
+    unsubscribed: bool
+    linkedin_url: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
+# Paginated response for contacts
+class PaginatedContacts(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    contacts: List[ContactResponse]
 
 
 # -------------------- Campaign --------------------
