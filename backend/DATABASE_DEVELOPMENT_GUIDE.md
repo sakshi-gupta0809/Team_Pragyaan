@@ -61,6 +61,19 @@ alembic upgrade head
 docker exec -it email_backend bash -c "cd /app && alembic upgrade head"
 ```
 
+To apply migrations, make sure your backend container is running. Then, use the following command in PowerShell from your project root (`E:\pragyaan`):
+
+```powershell
+docker compose exec backend sh -c "cd /app && alembic upgrade head"
+```
+
+This command:
+- Uses `sh` (the shell available in most containers)
+- Changes to `/app` (where your code and alembic.ini are mounted)
+- Runs the Alembic migration
+
+If you see an error like `No 'script_location' key found in configuration`, it means Alembic is not running from the correct directory or using the right config file. The above command resolves this.
+
 ### 5. Run Schema Validation Tests
 
 Verify that the database schema now matches the models:
@@ -125,6 +138,14 @@ If a migration fails to apply:
 1. Check the error message for details
 2. You may need to manually edit the migration file
 3. For complex issues, consider writing a custom SQL script
+
+### Troubleshooting
+
+- **Error: No 'script_location' key found in configuration**
+  - Make sure you run Alembic from `/app` inside the container, as shown above.
+  - Ensure your `alembic.ini` has `script_location = %(here)s/migrations`.
+- **Error: column does not exist**
+  - Make sure you have applied all migrations using the command above.
 
 ## Best Practices
 

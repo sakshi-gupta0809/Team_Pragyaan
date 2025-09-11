@@ -9,8 +9,8 @@ from .database import get_db
 # ---------------- CONFIG ----------------
 SMTP_HOST = "smtp.gmail.com"  # or your SMTP server
 SMTP_PORT = 587
-SMTP_USER = "your_email@gmail.com"
-SMTP_PASS = "your_password"  # or use app password
+SMTP_USER = "akshaygavade106@gmail.com"
+SMTP_PASS = "lpfi aalv hvma shmd"  # or use app password
 
 BASE_URL = "http://localhost:8000"  # for tracking pixel & unsubscribe
 

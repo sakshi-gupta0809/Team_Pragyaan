@@ -270,7 +270,7 @@ const Dashboard = () => {
     setApiError(null);
 
     try {
-      const response = await fetch('http://localhost:8000/campaigns/', {
+      const response = await fetch('http://localhost:8000/api/campaigns/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
