@@ -4,6 +4,7 @@ import {
   Search, Bell, Plus, Upload, TrendingUp, Eye, MousePointer, Bot, PieChart, MoreVertical, Pause, Play, Square,
   Send
 } from 'lucide-react';
+import ContactsPage from './ContactsPage';
 
 const Dashboard = () => {
   const [activeSection, setActiveSection] = useState('dashboard');
@@ -410,7 +411,7 @@ const handleAddContact = async () => {
       case 'campaigns':
         return <SectionCard title="Recent Campaigns" data={recentCampaigns} />;
       case 'contacts':
-        return <SectionCard title="Contacts" data={contacts} icon={<Users className="w-16 h-16 text-gray-300" />} />;
+        return <ContactsPage />;
       case 'calendar':
         return <SectionCard title="Upcoming Schedules" data={schedules} icon={<Calendar className="w-16 h-16 text-gray-300" />} />;
       case 'analytics':

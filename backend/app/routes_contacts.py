@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from typing import Optional
@@ -14,6 +15,17 @@ def get_db():
     finally:
         db.close()
 
+@router.options("/contacts")
+async def contacts_options():
+    # Handle OPTIONS request for CORS preflight
+    headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Max-Age": "3600",
+    }
+    return JSONResponse(content={}, headers=headers)
+
 @router.get("/contacts")
 def get_contacts(
     search: Optional[str] = Query(None),
@@ -23,6 +35,13 @@ def get_contacts(
     page_size: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
+    # Add CORS headers to the response
+    headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    }
+    
     query = db.query(Contact).options(joinedload(Contact.campaign))
     if search:
         query = query.filter(or_(Contact.name.ilike(f"%{search}%"), Contact.email.ilike(f"%{search}%")))
@@ -44,13 +63,37 @@ def get_contacts(
             "unsubscribed": c.unsubscribed,
             "linkedin_url": c.linkedin_url
         })
-    return {
-        "total": total,
-        "page": page,
-        "contacts": contact_list
+    return JSONResponse(
+        content={
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "contacts": contact_list
+        },
+        headers=headers
+    )
+
+@router.options("/campaigns")
+async def campaigns_options():
+    # Handle OPTIONS request for CORS preflight
+    headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Max-Age": "3600",
     }
+    return JSONResponse(content={}, headers=headers)
 
 @router.get("/campaigns")
 def get_campaigns(db: Session = Depends(get_db)):
+    # Add CORS headers to the response
+    headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    }
+    
     campaigns = db.query(Campaign).order_by(Campaign.name).all()
-    return [{"id": c.id, "name": c.name} for c in campaigns]
+    campaign_list = [{"id": c.id, "name": c.name} for c in campaigns]
+    
+    return JSONResponse(content=campaign_list, headers=headers)
