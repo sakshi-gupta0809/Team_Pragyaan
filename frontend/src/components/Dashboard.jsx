@@ -58,6 +58,7 @@ const Dashboard = () => {
   const [templates, setTemplates] = useState([]);
   const [emailLogs, setEmailLogs] = useState([]);
   const [liveStats, setLiveStats] = useState({ loading: false, data: null, error: null });
+  const [scheduledCampaigns, setScheduledCampaigns] = useState([]);
   
   // Enhanced error handling
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
@@ -65,6 +66,20 @@ const Dashboard = () => {
   const [apiError, setApiError] = useState(null);
 
   const toggleTimer = () => setActiveTimer(!activeTimer);
+
+  const refreshScheduledCampaigns = async () => {
+    try {
+      const res = await fetch('/api/campaigns/scheduled', { headers: { 'Accept': 'application/json' } });
+      if (!res.ok) {
+        setScheduledCampaigns([]);
+        return;
+      }
+      const data = await res.json();
+      setScheduledCampaigns(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setScheduledCampaigns([]);
+    }
+  };
 
   // Days of week for calendar
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -440,6 +455,12 @@ const Dashboard = () => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    if (activeSection === 'dashboard') {
+      refreshScheduledCampaigns();
+    }
+  }, [activeSection]);
+
   // Handle file import
   const handleFileImport = async (event) => {
     const file = event.target.files[0];
@@ -693,6 +714,8 @@ const handleAddContact = async () => {
                   activeTimer={activeTimer}
                   toggleTimer={toggleTimer}
                   timerTime={timerTime}
+                  scheduledCampaigns={scheduledCampaigns}
+                  onRefreshScheduled={refreshScheduledCampaigns}
                 />;
     }
   };
@@ -1402,7 +1425,7 @@ const DashboardHeader = ({
 );
 
 // Dashboard Home Content
-const DashboardHome = ({ stats, recentCampaigns, activeTimer, toggleTimer, timerTime }) => (
+const DashboardHome = ({ stats, recentCampaigns, activeTimer, toggleTimer, timerTime, scheduledCampaigns, onRefreshScheduled }) => (
   <>
     <div className="grid grid-cols-2 gap-x-3 gap-y-0 mb-1 w-full items-stretch">
       <div className="h-28">
@@ -1416,6 +1439,39 @@ const DashboardHome = ({ stats, recentCampaigns, activeTimer, toggleTimer, timer
       </div>
       <div className="h-28">
         <StatCard icon={<MousePointer className="w-4 h-4 text-teal-600" />} label="Click Rate" value={`${stats.click_rate}%`} />
+      </div>
+    </div>
+    {/* Scheduled Campaigns */}
+    <div className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-6 w-full">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-lg font-medium text-gray-900">Scheduled Campaigns</h3>
+        <button onClick={onRefreshScheduled} className="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50">Refresh</button>
+      </div>
+      <div className="divide-y">
+        {scheduledCampaigns.length === 0 ? (
+          <div className="text-sm text-gray-500 py-2">No scheduled campaigns</div>
+        ) : (
+          scheduledCampaigns.map(c => (
+            <div key={c.id} className="flex items-center justify-between py-2">
+              <div className="text-sm text-gray-800">{c.name} (ID {c.id})</div>
+              <button
+                className="text-xs px-3 py-1.5 rounded-lg border hover:bg-red-50 text-red-700 border-red-200"
+                onClick={async () => {
+                  if (!confirm(`Cancel schedule for ${c.name}?`)) return;
+                  try {
+                    const resp = await fetch(`/api/campaigns/${c.id}/cancel-schedule`, { method: 'POST', headers: { 'Accept': 'application/json' } });
+                    if (!resp.ok) throw new Error('Failed');
+                    onRefreshScheduled();
+                  } catch (e) {
+                    alert('Failed to cancel schedule');
+                  }
+                }}
+              >
+                Cancel schedule
+              </button>
+            </div>
+          ))
+        )}
       </div>
     </div>
   </>

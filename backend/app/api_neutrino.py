@@ -1196,23 +1196,20 @@ async def approve_schedule(
         if not campaign:
             raise HTTPException(status_code=404, detail=f"Campaign with ID {campaign_id} not found")
 
-        # Load contacts from file or DB
-        contacts_file = os.path.join(DATA_DIR, f"campaign_{campaign_id}_contacts.json")
+        # Load contacts strictly from request payload or file (no implicit DB fallback)
         contacts: List[Dict[str, Any]] = []
-        if os.path.exists(contacts_file):
-            with open(contacts_file, 'r') as f:
-                payload = json.load(f)
-                contacts = payload.get("contacts", [])
+        # Prefer explicit contacts provided in the request body
+        if data and isinstance(data, dict) and isinstance(data.get("contacts"), list):
+            contacts = data.get("contacts") or []
         else:
-            db_contacts = db.query(Contact).filter(Contact.campaign_id == campaign_id).all()
-            for c in db_contacts:
-                contacts.append({
-                    "name": c.name,
-                    "email": c.email,
-                    "job_title": c.designation,
-                    "company": c.company,
-                    "category": c.category or "other"
-                })
+            contacts_file = os.path.join(DATA_DIR, f"campaign_{campaign_id}_contacts.json")
+            if os.path.exists(contacts_file):
+                with open(contacts_file, 'r') as f:
+                    payload = json.load(f)
+                    contacts = payload.get("contacts", [])
+            else:
+                # If neither request nor file provides contacts, require explicit input
+                raise HTTPException(status_code=400, detail="No contacts provided to schedule. Upload a leads file or include contacts in the request.")
 
         # Decide start date
         start_iso = None
@@ -1254,8 +1251,8 @@ async def approve_schedule(
             tpl = templates_by_category.get(cat) or next(iter(templates_by_category.values()), None)
 
             if tpl:
-                subject = tpl.subject
-                body = tpl.body
+                subject = tpl.subject or ""
+                body = tpl.body or ""
             else:
                 subject = f"{campaign.name} - Introduction"
                 body = (
@@ -1278,6 +1275,13 @@ async def approve_schedule(
                 .replace('{name}', name)
                 .replace('{company}', company)
             )
+
+            # Ensure greeting and signed-off closing
+            tb = body.strip()
+            if not tb.lower().startswith(("hi ", "hello ", "dear ")):
+                body = (f"Hi {name},\n\n" if name else "Hello,\n\n") + body
+            if ("thank you" not in body.lower()) and ("regards" not in body.lower()) and ("sincerely" not in body.lower()):
+                body = body.rstrip() + "\n\nThank you,\nNeutrino Tech Systems"
 
             # Find DB contact row for contact_id mapping
             db_contact = db.query(Contact).filter(Contact.email == email_addr, Contact.campaign_id == campaign_id).first()
@@ -1307,6 +1311,7 @@ async def approve_schedule(
             created_emails.append({
                 "id": email_log.id,
                 "recipient": email_addr,
+                "category": cat,
                 "subject": subject,
                 "body": body,
                 "scheduledDate": start_dt.isoformat(),

@@ -251,11 +251,44 @@ def schedule_campaign_emails(
         # Find appropriate template (use first template for now, later will match by category)
         template = templates[0]
         
+        # Personalize subject and body with safe fallbacks
+        recipient_name = contact.name or ""
+        recipient_company = contact.company or ""
+        recipient_category = (contact.category or "other").lower()
+
+        subject = (template.subject or "")
+        body = (template.body or "")
+
+        # Replace common placeholders
+        subject = (subject
+            .replace('{{name}}', recipient_name)
+            .replace('{{company}}', recipient_company)
+            .replace('{name}', recipient_name)
+            .replace('{company}', recipient_company)
+        )
+        body = (body
+            .replace('{{name}}', recipient_name)
+            .replace('{{company}}', recipient_company)
+            .replace('{name}', recipient_name)
+            .replace('{company}', recipient_company)
+        )
+
+        # Ensure greeting and a courteous closing if missing
+        trimmed_body = body.strip()
+        if not trimmed_body.lower().startswith(("hi ", "hello ", "dear ")):
+            greeting = f"Hi {recipient_name},\n\n" if recipient_name else "Hello,\n\n"
+            body = greeting + body
+        if ("thank you" not in body.lower()) and ("regards" not in body.lower()) and ("sincerely" not in body.lower()):
+            body = body.rstrip() + "\n\nThank you,\nNeutrino Tech Systems"
+
         # Create the email
         email_log = models.EmailLog(
             recipient_email=contact.email,
-            subject=template.subject,
-            body=template.body,
+            recipient_name=recipient_name or None,
+            recipient_company=recipient_company or None,
+            recipient_category=recipient_category,
+            subject=subject,
+            body=body,
             status="pending",
             campaign=campaign
         )
