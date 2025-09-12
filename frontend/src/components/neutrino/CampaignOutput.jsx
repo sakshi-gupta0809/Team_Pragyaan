@@ -22,12 +22,13 @@ const CampaignOutput = ({ campaignData, onDownload, isLoading }) => {
 
   
   
-  // Group emails by category
+  // Group emails by category with safe fallbacks
   const emailsByCategory = campaignData.emails.reduce((acc, email) => {
-    if (!acc[email.category]) {
-      acc[email.category] = [];
+    const normalizedCategory = (email.category || email.recipient_category || 'Other').toString();
+    if (!acc[normalizedCategory]) {
+      acc[normalizedCategory] = [];
     }
-    acc[email.category].push(email);
+    acc[normalizedCategory].push(email);
     return acc;
   }, {});
   
@@ -187,7 +188,7 @@ const CampaignOutput = ({ campaignData, onDownload, isLoading }) => {
                 <div key={category} className="border border-gray-200 rounded-xl overflow-hidden">
                   <div className={`px-4 py-3 ${getCategoryStyle(category)}`}>
                     <div className="flex justify-between items-center">
-                      <h4 className="font-medium">{category}</h4>
+                      <h4 className="font-medium">{category || 'Other'}</h4>
                       <span className="text-sm">{emails.length} emails</span>
                     </div>
                   </div>
@@ -203,7 +204,12 @@ const CampaignOutput = ({ campaignData, onDownload, isLoading }) => {
                               <span className="text-gray-500 truncate">{email.subject}</span>
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
-                              Scheduled: {new Date(email.scheduledDate).toLocaleDateString()} ({email.followUpDay === 0 ? 'Initial' : `Day ${email.followUpDay}`})
+                              {(() => {
+                                const scheduled = email.scheduledDate ? new Date(email.scheduledDate) : null;
+                                const dateStr = scheduled && !isNaN(scheduled) ? scheduled.toLocaleDateString() : '-';
+                                const dayLabel = typeof email.followUpDay === 'number' ? (email.followUpDay === 0 ? 'Initial' : `Day ${email.followUpDay}`) : 'Initial';
+                                return `Scheduled: ${dateStr} (${dayLabel})`;
+                              })()}
                             </div>
                           </div>
                         ))}

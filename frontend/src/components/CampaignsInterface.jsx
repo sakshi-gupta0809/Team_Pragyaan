@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronDown, Edit2, MoreHorizontal, ChevronLeft, ChevronRight, Sparkles, Trash2 } from 'lucide-react';
+import { Search, ChevronDown, ChevronLeft, ChevronRight, Sparkles, Trash2 } from 'lucide-react';
 import NeutrinoCampaignWorkflow from './neutrino/NeutrinoCampaignWorkflow';
 import CampaignDetails from './CampaignDetails';
 
@@ -80,15 +80,7 @@ const CampaignsInterface = () => {
     }
   };
 
-  const handleEditCampaign = (campaignId) => {
-    console.log('Edit campaign:', campaignId);
-    // Navigate to campaign edit page
-  };
-
-  const handleMoreOptions = (campaignId) => {
-    console.log('More options for campaign:', campaignId);
-    // Show dropdown with more options
-  };
+  // Removed edit and more options handlers
 
 
   const handleDeleteCampaign = async (campaignId) => {
@@ -211,6 +203,36 @@ const CampaignsInterface = () => {
 
             {/* Campaign Table */}
             <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-x-auto w-full">
+              {selectedCampaigns.length > 0 && (
+                <div className="flex justify-between items-center px-6 py-3 bg-red-50 border-b border-red-100 rounded-t-3xl">
+                  <div className="text-sm text-red-700">{selectedCampaigns.length} selected</div>
+                  <button
+                    className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"
+                    onClick={async () => {
+                      const ids = selectedCampaigns.map(id => typeof id === 'string' && id.startsWith('#') ? parseInt(id.replace('#','')) : id);
+                      if (!window.confirm(`Delete ${ids.length} selected campaign(s)? This cannot be undone.`)) return;
+                      try {
+                        const res = await fetch('/api/campaigns/bulk-delete', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                          body: JSON.stringify({ ids })
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.detail || 'Bulk delete failed');
+                        setCampaigns(prev => prev.filter(c => {
+                          const numericId = typeof c.id === 'string' && c.id.startsWith('#') ? parseInt(c.id.replace('#','')) : c.id;
+                          return !ids.includes(numericId);
+                        }));
+                        setSelectedCampaigns([]);
+                      } catch (e) {
+                        alert('Failed to bulk delete campaigns');
+                      }
+                    }}
+                  >
+                    Delete Selected
+                  </button>
+                </div>
+              )}
               {/* Table Header */}
               <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-green-100 border-b border-gray-200 text-sm font-medium text-gray-800 rounded-t-3xl w-full">
                 <div className="col-span-1">
@@ -290,25 +312,13 @@ const CampaignsInterface = () => {
                   <div className="col-span-1 text-center text-gray-600">{campaign.opens}</div>
                   <div className="col-span-1 text-center text-gray-600">{campaign.clicks}</div>
                   <div className="col-span-1 text-center text-gray-600">{campaign.unsubscribed}</div>
-                  <div className="col-span-3 flex items-center justify-end space-x-2">
-                    <button
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                      onClick={() => handleEditCampaign(campaign.id)}
-                    >
-                      <Edit2 className="w-4 h-4 text-brand-dark" />
-                    </button>
+                  <div className="col-span-3 flex items-center justify-end">
                     <button
                       className="p-2 hover:bg-red-50 rounded-lg transition-colors"
                       onClick={() => handleDeleteCampaign(campaign.id)}
                       title="Delete campaign"
                     >
                       <Trash2 className="w-4 h-4 text-red-600" />
-                    </button>
-                    <button
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                      onClick={() => handleMoreOptions(campaign.id)}
-                    >
-                      <MoreHorizontal className="w-4 h-4 text-gray-400" />
                     </button>
                   </div>
                 </div>
