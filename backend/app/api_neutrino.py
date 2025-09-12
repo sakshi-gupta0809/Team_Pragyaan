@@ -1318,12 +1318,20 @@ async def approve_schedule(
                 "status": "scheduled"
             })
 
+        # If we created schedules, mark campaign as scheduled
+        if created_emails:
+            try:
+                campaign.status = "scheduled"
+            except Exception:
+                pass
+
         db.commit()
 
         return JSONResponse({
             "success": True,
             "campaign_id": campaign_id,
-            "emails": created_emails
+            "emails": created_emails,
+            "status": campaign.status
         })
     except Exception as e:
         db.rollback()

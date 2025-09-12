@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronDown, ChevronLeft, ChevronRight, Sparkles, Trash2 } from 'lucide-react';
+import { Search, ChevronDown, ChevronLeft, ChevronRight, Sparkles, Trash2, CalendarClock, X } from 'lucide-react';
 import NeutrinoCampaignWorkflow from './neutrino/NeutrinoCampaignWorkflow';
 import CampaignDetails from './CampaignDetails';
 
@@ -13,6 +13,7 @@ const CampaignsInterface = () => {
   const [totalCampaigns, setTotalCampaigns] = useState(0);
   const [selectedCampaigns, setSelectedCampaigns] = useState([]);
   const [viewCampaignId, setViewCampaignId] = useState(null);
+  const [scheduleModal, setScheduleModal] = useState({ open: false, id: null, date: '' });
 
   const statusOptions = ['All statuses', 'Draft', 'Sent', 'Scheduled', 'Paused'];
 
@@ -106,6 +107,27 @@ const CampaignsInterface = () => {
 
   const handlePagination = (page) => {
     setCurrentPage(page);
+  };
+
+  const handleScheduleCampaign = (campaignId) => {
+    const numericId = typeof campaignId === 'string' && campaignId.startsWith('#') ? parseInt(campaignId.replace('#','')) : campaignId;
+    setScheduleModal({ open: true, id: numericId, date: '' });
+  };
+
+  const submitSchedule = async () => {
+    if (!scheduleModal.id) return;
+    try {
+      const query = scheduleModal.date ? `?start_date=${encodeURIComponent(scheduleModal.date)}` : '';
+      const res = await fetch(`/scheduler/schedule-campaign/${scheduleModal.id}${query}`, { method: 'POST', headers: { 'Accept': 'application/json' } });
+      if (!res.ok) throw new Error(await res.text());
+      setCampaigns(prev => prev.map(c => {
+        const idVal = typeof c.id === 'string' && c.id.startsWith('#') ? parseInt(c.id.replace('#','')) : c.id;
+        return idVal === scheduleModal.id ? { ...c, status: 'scheduled' } : c;
+      }));
+      setScheduleModal({ open: false, id: null, date: '' });
+    } catch (e) {
+      alert('Failed to schedule campaign');
+    }
   };
 
   return (
@@ -292,15 +314,23 @@ const CampaignsInterface = () => {
                           {campaign.name}
                         </button>
                         <div className="text-sm text-gray-500 flex items-center space-x-2 flex-wrap gap-y-1 w-full">
-                          <span className={`px-2 py-1 ${
-                            campaign.status === 'sent' ? 'bg-brand-yellow text-brand-dark' :
-                            campaign.status === 'scheduled' ? 'bg-brand-dark text-brand-white' :
-                            campaign.status === 'draft' ? 'bg-brand-white text-brand-dark border border-brand-dark' :
-                            campaign.status === 'paused' ? 'bg-gray-300 text-brand-dark' :
-                            'bg-gray-100 text-gray-600'
-                          } text-xs rounded-full`}>
-                            {campaign.status}
-                          </span>
+                          {(() => {
+                            const s = (campaign.status || '').toString().toLowerCase();
+                            const cls = s === 'sent'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : s === 'scheduled'
+                              ? 'bg-blue-100 text-blue-800'
+                              : s === 'draft'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : s === 'paused'
+                              ? 'bg-gray-200 text-gray-800'
+                              : 'bg-gray-100 text-gray-600';
+                            const label = s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Unknown';
+                            return (
+                              <span className={`px-2 py-1 ${cls} text-xs rounded-full`}>{label}</span>
+                            );
+                          })()}
+                          
                           <span>{campaign.last_edited}</span>
                         </div>
                         <div className="text-sm text-gray-400 mt-1">{campaign.id}</div>
@@ -312,7 +342,22 @@ const CampaignsInterface = () => {
                   <div className="col-span-1 text-center text-gray-600">{campaign.opens}</div>
                   <div className="col-span-1 text-center text-gray-600">{campaign.clicks}</div>
                   <div className="col-span-1 text-center text-gray-600">{campaign.unsubscribed}</div>
-                  <div className="col-span-3 flex items-center justify-end">
+                  <div className="col-span-3 flex items-center justify-end space-x-2">
+                    {(() => {
+                      const s = (campaign.status || '').toString().toLowerCase();
+                      if (s === 'draft' || s === 'paused') {
+                        return (
+                          <button
+                            className="p-2 hover:bg-emerald-50 rounded-lg transition-colors"
+                            onClick={() => handleScheduleCampaign(campaign.id)}
+                            title="Schedule campaign"
+                          >
+                            <CalendarClock className="w-4 h-4 text-emerald-600" />
+                          </button>
+                        );
+                      }
+                      return null;
+                    })()}
                     <button
                       className="p-2 hover:bg-red-50 rounded-lg transition-colors"
                       onClick={() => handleDeleteCampaign(campaign.id)}
@@ -324,6 +369,35 @@ const CampaignsInterface = () => {
                 </div>
               ))}
             </div>
+            {/* Schedule Modal */}
+            {scheduleModal.open && (
+              <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                <div className="bg-white rounded-2xl shadow-lg w-full max-w-md">
+                  <div className="flex items-center justify-between px-5 py-3 border-b">
+                    <h3 className="text-lg font-semibold text-gray-900">Schedule Campaign</h3>
+                    <button className="p-2 rounded hover:bg-gray-100" onClick={() => setScheduleModal({ open: false, id: null, date: '' })}>
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Start date and time</label>
+                      <input
+                        type="datetime-local"
+                        value={scheduleModal.date}
+                        onChange={(e) => setScheduleModal(m => ({ ...m, date: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">If left blank, next business day is used.</p>
+                    </div>
+                  </div>
+                  <div className="px-5 py-4 border-t flex justify-end space-x-2">
+                    <button className="px-4 py-2 rounded-xl border" onClick={() => setScheduleModal({ open: false, id: null, date: '' })}>Cancel</button>
+                    <button className="px-4 py-2 rounded-xl bg-emerald-600 text-white" onClick={submitSchedule}>Schedule</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

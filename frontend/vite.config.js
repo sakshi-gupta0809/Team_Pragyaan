@@ -12,6 +12,10 @@ export default defineConfig({
       '/api': {
         target: 'http://email_backend:8000',
         changeOrigin: true
+      },
+      '/scheduler': {
+        target: 'http://email_backend:8000',
+        changeOrigin: true
       }
     }
   }
