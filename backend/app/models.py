@@ -9,6 +9,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     email = Column(String, unique=True, index=True)
+    password_hash = Column(String, nullable=True)
 
     # Relationships
     campaigns = relationship("Campaign", back_populates="owner")

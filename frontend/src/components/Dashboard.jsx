@@ -9,8 +9,9 @@ import ContactsPage from './ContactsPage';
 import CampaignsInterface from './CampaignsInterface';
 import NeutrinoCampaignWorkflow from './neutrino/NeutrinoCampaignWorkflow';
 
-const Dashboard = () => {
+const Dashboard = ({ onLogout }) => {
   const [activeSection, setActiveSection] = useState('dashboard');
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [activeTimer, setActiveTimer] = useState(true);
   const [timerTime, setTimerTime] = useState('01:24:08');
   
@@ -723,10 +724,26 @@ const handleAddContact = async () => {
         </div>
 {/* Navigation */}
 <nav className="mt-4 px-4">
-  <MenuSection title="MAIN MENU" items={navigationItems} activeSection={activeSection} setActiveSection={setActiveSection} />
-  <MenuSection title="GENERAL" items={generalItems} activeSection={activeSection} setActiveSection={setActiveSection} />
+  <MenuSection title="MAIN MENU" items={navigationItems} activeSection={activeSection} setActiveSection={setActiveSection} onLogout={() => setShowLogoutConfirm(true)} />
+  <MenuSection title="GENERAL" items={generalItems} activeSection={activeSection} setActiveSection={setActiveSection} onLogout={() => setShowLogoutConfirm(true)} />
 </nav>
       </div>
+
+      {/* Logout Confirm Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 animate-[fadeIn_.2s_ease-out]" onClick={() => setShowLogoutConfirm(false)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 border border-gray-100 animate-[popIn_.18s_ease-out]">
+            <div className="text-lg font-semibold text-gray-900 mb-1">Log out?</div>
+            <div className="text-sm text-gray-600 mb-6">You will need to log in again to access the dashboard.</div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowLogoutConfirm(false)} className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+              <button onClick={() => { setShowLogoutConfirm(false); onLogout && onLogout(); }} className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700">Log out</button>
+            </div>
+          </div>
+          <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes popIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 p-4 w-full overflow-x-auto">
@@ -1318,7 +1335,7 @@ export default Dashboard;
 
 // ================== Reusable Components ==================
 
-const MenuSection = ({ title, items, activeSection, setActiveSection }) => (
+const MenuSection = ({ title, items, activeSection, setActiveSection, onLogout }) => (
   <>
     <div className="px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-3">
       {title}
@@ -1327,7 +1344,13 @@ const MenuSection = ({ title, items, activeSection, setActiveSection }) => (
       {items.map(item => (
         <button
           key={item.id}
-          onClick={() => setActiveSection(item.id)}
+          onClick={() => {
+            if (item.id === 'logout' && onLogout) {
+              onLogout();
+            } else {
+              setActiveSection(item.id)
+            }
+          }}
           className={`w-full flex items-center px-3 py-2.5 rounded-xl text-left transition-all duration-200 ${
             activeSection === item.id
               ? 'bg-orange-50 text-orange-500 border-b-2 border-orange-500 shadow-sm'
