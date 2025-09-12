@@ -38,6 +38,17 @@ def create_access_token(subject: str, expires_delta: Optional[timedelta] = None)
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
+def get_current_user_id(token: str = None) -> Optional[int]:
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        sub = payload.get("sub")
+        return int(sub) if sub is not None else None
+    except Exception:
+        return None
+
+
 # ---------- OAuth Providers (Google, Facebook, LinkedIn, Instagram) ----------
 oauth = OAuth()
 

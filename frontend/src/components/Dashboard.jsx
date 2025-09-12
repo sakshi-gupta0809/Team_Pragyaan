@@ -18,6 +18,7 @@ const Dashboard = ({ onLogout }) => {
   // Calendar-related state
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState([]);
+  const [eventsLoaded, setEventsLoaded] = useState(false);
   const [showNewCampaignModal, setShowNewCampaignModal] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState('');
   const [newCampaignDescription, setNewCampaignDescription] = useState('');
@@ -32,6 +33,7 @@ const Dashboard = ({ onLogout }) => {
   // Enhanced calendar functionality
   const [activeDate, setActiveDate] = useState(new Date());
   const [showAddEventModal, setShowAddEventModal] = useState(false);
+  const [showAllEventsModal, setShowAllEventsModal] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventStartTime, setNewEventStartTime] = useState('09:00');
   const [newEventEndTime, setNewEventEndTime] = useState('10:00');
@@ -153,7 +155,7 @@ const Dashboard = ({ onLogout }) => {
   };
 
   // Add new event
-  const handleAddEvent = () => {
+  const handleAddEvent = async () => {
     if (!newEventTitle) {
       showToast("Event title is required", "error");
       return;
@@ -162,7 +164,7 @@ const Dashboard = ({ onLogout }) => {
     const formattedTime = `${newEventStartTime} — ${newEventEndTime}`;
     
     const newEvent = {
-      id: Date.now(), // Use timestamp for unique ID
+      id: Date.now(), // temp id; replaced by server id
       title: newEventTitle,
       time: formattedTime,
       type: newEventType,
@@ -170,12 +172,39 @@ const Dashboard = ({ onLogout }) => {
       date: new Date(activeDate)
     };
 
-    setEvents([...events, newEvent]);
+    // Persist to backend
+    try {
+      const token = window.localStorage.getItem('token');
+      const res = await fetch('/api/events/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: newEvent.title,
+          date: newEvent.date.toISOString(),
+          start_time: newEventStartTime,
+          end_time: newEventEndTime,
+          type: newEvent.type,
+          color: newEvent.color
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to save event');
+      setEvents([...events, { ...newEvent, id: data.id }]);
+      showToast(`Event "${newEventTitle}" added successfully!`, "success");
+    } catch (e) {
+      // Fallback to local add if server fails
+      setEvents([...events, newEvent]);
+      showToast('Saved locally (offline).', 'success');
+    }
+
     setNewEventTitle('');
     setNewEventStartTime('09:00');
     setNewEventEndTime('10:00');
     setShowAddEventModal(false);
-    showToast(`Event "${newEventTitle}" added successfully!`, "success");
   };
 
   // Edit existing event
@@ -227,41 +256,62 @@ const Dashboard = ({ onLogout }) => {
     setShowEditEventModal(true);
   };
 
-  // Load initial events
+  // Load initial events from localStorage (with demos as fallback)
   useEffect(() => {
-    // Generate dates for the sample events (today and upcoming days)
+    try {
+      const cached = window.localStorage.getItem('calendarEvents');
+      if (cached) {
+        const parsed = JSON.parse(cached).map(e => ({ ...e, date: new Date(e.date) }));
+        setEvents(parsed);
+        // Set active date to the nearest upcoming event, or today if none
+        const today = new Date();
+        const upcoming = parsed
+          .slice()
+          .sort((a,b) => new Date(a.date) - new Date(b.date))
+          .find(e => new Date(e.date) >= new Date(today.setHours(0,0,0,0)));
+        if (upcoming) {
+          setActiveDate(new Date(upcoming.date));
+        }
+        setEventsLoaded(true);
+        return;
+      }
+    } catch {}
     const today = new Date();
     const tomorrow = new Date();
     tomorrow.setDate(today.getDate() + 1);
     const dayAfterTomorrow = new Date();
     dayAfterTomorrow.setDate(today.getDate() + 2);
-    
     setEvents([
-      {
-        id: 1,
-        title: 'Email Campaign Launch',
-        time: '09:00 AM — 10:00 AM',
-        type: 'meeting',
-        color: 'bg-emerald-500',
-        date: today
-      },
-      {
-        id: 2,
-        title: 'Content Review',
-        time: '11:00 AM — 12:30 PM',
-        type: 'work',
-        color: 'bg-amber-400',
-        date: tomorrow
-      },
-      {
-        id: 3,
-        title: 'Team Strategy Session',
-        time: '02:00 PM — 03:30 PM',
-        type: 'development',
-        color: 'bg-rose-400',
-        date: dayAfterTomorrow
-      }
+      { id: 1, title: 'Email Campaign Launch', time: '09:00 AM — 10:00 AM', type: 'meeting', color: 'bg-emerald-500', date: today },
+      { id: 2, title: 'Content Review', time: '11:00 AM — 12:30 PM', type: 'work', color: 'bg-amber-400', date: tomorrow },
+      { id: 3, title: 'Team Strategy Session', time: '02:00 PM — 03:30 PM', type: 'development', color: 'bg-rose-400', date: dayAfterTomorrow }
     ]);
+    setEventsLoaded(true);
+  }, []);
+
+  // Persist events to localStorage on change and fetch from backend on login
+  useEffect(() => {
+    if (!eventsLoaded) return;
+    try {
+      const toSave = events.map(e => ({ ...e, date: e.date instanceof Date ? e.date.toISOString() : e.date }));
+      window.localStorage.setItem('calendarEvents', JSON.stringify(toSave));
+    } catch {}
+  }, [events, eventsLoaded]);
+
+  useEffect(() => {
+    // Try load from backend if token present
+    (async () => {
+      const token = window.localStorage.getItem('token');
+      if (!token) return;
+      try {
+        const res = await fetch('/api/events/', { headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) return;
+        const data = await res.json();
+        const mapped = data.map(d => ({ id: d.id, title: d.title, time: `${d.start_time || ''}${d.end_time ? ' — ' + d.end_time : ''}`.trim(), type: d.type, color: d.color || 'bg-emerald-500', date: new Date(d.date) }));
+        setEvents(mapped);
+        setEventsLoaded(true);
+      } catch {}
+    })();
   }, []);
 
   // Fetch live campaign stats for the last used campaign
@@ -1124,6 +1174,12 @@ const handleAddContact = async () => {
                     <PlusCircle className="w-4 h-4 mr-1" />
                     Add Event
                   </button>
+                  <button
+                    onClick={() => setShowAllEventsModal(true)}
+                    className="ml-3 text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50"
+                  >
+                    View All Events
+                  </button>
                 </div>
                 
                 {/* Events for selected date */}
@@ -1154,7 +1210,18 @@ const handleAddContact = async () => {
                             <div className="text-xs text-gray-500">{event.time}</div>
                           </div>
                           <div className="ml-auto">
-                            <button className="text-gray-400 hover:text-gray-600">
+                            <button
+                              className="text-gray-400 hover:text-gray-600"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!confirm('Delete this event?')) return;
+                                try {
+                                  const token = window.localStorage.getItem('token');
+                                  await fetch(`/api/events/${event.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                                } catch {}
+                                setEvents(prev => prev.filter(ev => ev.id !== event.id));
+                              }}
+                            >
                               <MoreVertical className="w-4 h-4" />
                             </button>
                           </div>
@@ -1353,6 +1420,31 @@ const handleAddContact = async () => {
           </div>
         </div>
       </div>
+      {/* All Events Modal */}
+      {showAllEventsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 shadow-lg w-full max-w-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold">All Scheduled Events</h3>
+              <button onClick={() => setShowAllEventsModal(false)} className="px-3 py-1.5 rounded-lg border hover:bg-gray-50">Close</button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto divide-y">
+              {events
+                .slice()
+                .sort((a,b) => new Date(a.date) - new Date(b.date))
+                .map(ev => (
+                  <div key={ev.id} className="py-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">{ev.title}</div>
+                      <div className="text-xs text-gray-500">{new Date(ev.date).toDateString()} • {ev.time}</div>
+                    </div>
+                    <span className={`inline-block w-3 h-3 rounded-full ${ev.color}`}></span>
+                  </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

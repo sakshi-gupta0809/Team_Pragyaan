@@ -22,6 +22,28 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+
+# -------------------- Events --------------------
+class EventBase(BaseModel):
+    title: str
+    date: datetime
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    type: Optional[str] = None
+    color: Optional[str] = None
+
+
+class EventCreate(EventBase):
+    pass
+
+
+class Event(EventBase):
+    id: int
+    owner_id: int
+
+    class Config:
+        from_attributes = True
+
     class Config:
         orm_mode = True
 

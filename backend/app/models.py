@@ -13,6 +13,7 @@ class User(Base):
 
     # Relationships
     campaigns = relationship("Campaign", back_populates="owner")
+    events = relationship("Event", back_populates="owner", cascade="all, delete-orphan")
 
 
 # -------------------- Contact --------------------
@@ -142,3 +143,19 @@ class FollowUp(Base):
 
     parent_email_id = Column(Integer, ForeignKey("email_logs.id"))
     parent_email = relationship("EmailLog")
+
+
+# -------------------- Calendar Event --------------------
+class Event(Base):
+    __tablename__ = "events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    date = Column(DateTime(timezone=True), nullable=False)
+    start_time = Column(String, nullable=True)  # e.g., "09:00 AM"
+    end_time = Column(String, nullable=True)
+    type = Column(String, nullable=True)
+    color = Column(String, nullable=True)
+
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    owner = relationship("User", back_populates="events")
