@@ -117,7 +117,7 @@ export default function ContactsPage() {
                   <td className="px-6 py-4 text-sm">{c.campaign_name || "-"}</td>
                   <td className="px-6 py-4 text-sm"><StatusLabel unsubscribed={c.unsubscribed} /></td>
                   <td className="px-6 py-4 text-sm">
-                    {c.linkedin_url ? <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Open</a> : "-"}
+                    {c.linkedin_url ? <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="text-emerald-600 hover:underline">Open</a> : "-"}
                   </td>
                 </tr>
               ))

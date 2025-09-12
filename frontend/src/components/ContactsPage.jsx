@@ -45,7 +45,11 @@ const ContactsPage = () => {
         params.append('page_size', pageSize);
 
         const response = await fetch(`http://localhost:8000/api/contacts?${params.toString()}`, {
-          mode: 'cors'
+          mode: 'cors',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json'
+          }
         });
 
         if (response.ok) {
@@ -58,15 +62,12 @@ const ContactsPage = () => {
         }
       } catch (err) {
         console.error('Error fetching contacts:', err);
-        setError('Failed to load contacts. Please try again later.');
-        
-        // Fallback to mock data for development
-        setContacts([
-          { id: 1, name: "John Doe", email: "john@example.com", campaign_name: "Q4 Product Launch", unsubscribed: false, linkedin_url: "https://linkedin.com/in/johndoe" },
-          { id: 2, name: "Jane Smith", email: "jane@example.com", campaign_name: "Q4 Product Launch", unsubscribed: false, linkedin_url: "https://linkedin.com/in/janesmith" },
-          { id: 3, name: "Mike Johnson", email: "mike@example.com", campaign_name: "Customer Feedback Survey", unsubscribed: true, linkedin_url: "https://linkedin.com/in/mikejohnson" }
-        ]);
-        setTotalContacts(3);
+        const errorMessage = err.message.includes('Failed to fetch')
+          ? 'Unable to connect to the server. Please check if the server is running and the database is configured correctly.'
+          : 'Failed to load contacts. Please try again later.';
+        setError(errorMessage);
+        setContacts([]);
+        setTotalContacts(0);
       } finally {
         setIsLoading(false);
       }
@@ -80,7 +81,11 @@ const ContactsPage = () => {
     const fetchCampaigns = async () => {
       try {
         const response = await fetch('http://localhost:8000/api/campaigns', {
-          mode: 'cors'
+          mode: 'cors',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json'
+          }
         });
         
         if (response.ok) {
@@ -91,12 +96,7 @@ const ContactsPage = () => {
         }
       } catch (err) {
         console.error('Error fetching campaigns:', err);
-        // Fallback to mock data
-        setCampaigns([
-          { id: 1, name: "Q4 Product Launch" },
-          { id: 2, name: "Customer Feedback Survey" },
-          { id: 3, name: "Holiday Promotion" }
-        ]);
+        setCampaigns([]);
       }
     };
 
@@ -123,14 +123,14 @@ const ContactsPage = () => {
   const endRecord = Math.min(currentPage * pageSize, totalContacts);
 
   return (
-    <div className="px-8 py-6">
+    <div className="px-4 py-4 w-full">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Contacts</h1>
-        <p className="text-gray-600 mt-1">Manage your contacts and subscribers</p>
+        <p className="text-emerald-700 mt-1">Manage your contacts and subscribers</p>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+      <div className="bg-white rounded-2xl shadow-sm p-4 mb-6 overflow-hidden">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Search box */}
           <div className="relative">
@@ -140,7 +140,7 @@ const ContactsPage = () => {
             <input
               type="text"
               placeholder="Search name or email..."
-              className="pl-10 w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              className="pl-10 w-full rounded-xl border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -149,7 +149,7 @@ const ContactsPage = () => {
           {/* Campaign dropdown */}
           <div>
             <select
-              className="w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              className="w-full rounded-xl border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               value={selectedCampaign}
               onChange={(e) => setSelectedCampaign(e.target.value)}
             >
@@ -165,7 +165,7 @@ const ContactsPage = () => {
           {/* Status dropdown */}
           <div>
             <select
-              className="w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              className="w-full rounded-xl border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
             >
@@ -178,10 +178,13 @@ const ContactsPage = () => {
       </div>
 
       {/* Contacts Table */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm overflow-hidden w-full">
+        <div className="p-4 border-b border-gray-200 bg-gray-50 text-sm text-gray-500">
+          <p>Scroll horizontally to view all contact information.</p>
+        </div>
         {isLoading ? (
           <div className="flex justify-center items-center p-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
           </div>
         ) : error ? (
           <div className="p-8 text-center text-red-500">{error}</div>
@@ -191,67 +194,97 @@ const ContactsPage = () => {
             <p className="mt-1">Try adjusting your filters or add new contacts</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full divide-y divide-gray-200">
+              <thead>
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-12 bg-green-100 rounded-tl-xl">
                     ID
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-32 bg-green-100">
                     Name
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-48 bg-green-100">
                     Email
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-32 bg-green-100">
                     Campaign
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-24 bg-green-100">
+                    Subscription
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-24 bg-green-100">
                     LinkedIn
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-28 bg-green-100">
+                    Designation
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-28 bg-green-100">
+                    Company
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-24 bg-green-100">
+                    Category
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-28 bg-green-100">
+                    Last Contacted
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-24 bg-green-100 rounded-tr-xl">
+                    Status
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {contacts.map((contact) => (
                   <tr key={contact.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{contact.id}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{contact.name}</div>
+                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{contact.id}</td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900 truncate max-w-[120px]">{contact.name}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{contact.email}</div>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <div className="text-sm text-gray-500 truncate max-w-[180px]">{contact.email}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{contact.campaign_name || 'No Campaign'}</div>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <div className="text-sm text-gray-500 truncate max-w-[120px]">{contact.campaign_name || 'No Campaign'}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 py-3 whitespace-nowrap">
                       {contact.unsubscribed ? (
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                          Unsubscribed
+                        <span className="px-1.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                          Unsub
                         </span>
                       ) : (
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                          Subscribed
+                        <span className="px-1.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">
+                          Active
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                       {contact.linkedin_url ? (
                         <a
                           href={contact.linkedin_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 flex items-center"
+                          className="text-emerald-600 hover:text-emerald-800 flex items-center"
                         >
-                          View <ExternalLink className="ml-1 h-3 w-3" />
+                          <ExternalLink className="h-3 w-3" />
                         </a>
                       ) : (
-                        'N/A'
+                        '-'
                       )}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500 truncate max-w-[100px]">
+                      {contact.designation || '-'}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500 truncate max-w-[100px]">
+                      {contact.company || '-'}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500 truncate max-w-[80px]">
+                      {contact.category || '-'}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                      {contact.last_contacted ? new Date(contact.last_contacted).toLocaleDateString() : 'Never'}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                      {contact.status || '-'}
                     </td>
                   </tr>
                 ))}
@@ -267,7 +300,7 @@ const ContactsPage = () => {
               onClick={goToPreviousPage}
               disabled={currentPage === 1}
               className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
-                currentPage === 1 ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 hover:bg-gray-50'
+                currentPage === 1 ? 'bg-gray-100 text-gray-400' : 'bg-white text-emerald-700 hover:bg-emerald-50'
               }`}
             >
               Previous
@@ -276,7 +309,7 @@ const ContactsPage = () => {
               onClick={goToNextPage}
               disabled={currentPage >= totalPages}
               className={`ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
-                currentPage >= totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 hover:bg-gray-50'
+                currentPage >= totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white text-emerald-700 hover:bg-emerald-50'
               }`}
             >
               Next
@@ -296,20 +329,20 @@ const ContactsPage = () => {
                   onClick={goToPreviousPage}
                   disabled={currentPage === 1}
                   className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 ${
-                    currentPage === 1 ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-500 hover:bg-gray-50'
+                    currentPage === 1 ? 'bg-gray-100 text-gray-400' : 'bg-white text-emerald-600 hover:bg-emerald-50'
                   }`}
                 >
                   <span className="sr-only">Previous</span>
                   <ChevronLeft className="h-5 w-5" />
                 </button>
-                <div className="bg-white border-gray-300 text-gray-500 relative inline-flex items-center px-4 py-2 border text-sm font-medium">
+                <div className="bg-green-100 border-green-200 text-gray-800 relative inline-flex items-center px-4 py-2 border text-sm font-medium">
                   Page {currentPage} of {totalPages || 1}
                 </div>
                 <button
                   onClick={goToNextPage}
                   disabled={currentPage >= totalPages}
                   className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 ${
-                    currentPage >= totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-500 hover:bg-gray-50'
+                    currentPage >= totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white text-emerald-600 hover:bg-emerald-50'
                   }`}
                 >
                   <span className="sr-only">Next</span>

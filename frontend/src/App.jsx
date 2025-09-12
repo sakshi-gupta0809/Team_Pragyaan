@@ -1,9 +1,18 @@
+import { useState } from 'react'
 import './App.css'
 import Dashboard from './components/Dashboard'
+import ModernDashboard from './components/ModernDashboard'
 
 function App() {
+  const [useModernUI, setUseModernUI] = useState(true)
+
   return (
-    <Dashboard />
+    <div className="app-container">
+     
+          <Dashboard />
+          
+      
+    </div>
   )
 }
 

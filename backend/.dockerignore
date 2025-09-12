@@ -18,6 +18,7 @@ ENV/
 
 # Environment variables
 .env
+# Don't ignore .env.docker as it's needed for Docker builds
 
 # Docker
 Dockerfile

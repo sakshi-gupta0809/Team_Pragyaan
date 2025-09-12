@@ -13,7 +13,7 @@ router = APIRouter()
 
 ALLOWED_SORT_BY = {"id", "name", "email"}
 
-@router.get("/contacts", response_model=ContactsListOut)
+@router.get("/contacts/", response_model=ContactsListOut)
 def list_contacts(
     search: Optional[str] = Query(None),
     campaign_id: Optional[int] = Query(None),
@@ -78,7 +78,12 @@ def list_contacts(
             email=contact.email,
             campaign_name=campaign_name,
             unsubscribed=bool(contact.unsubscribed),
-            linkedin_url=contact.linkedin_url
+            linkedin_url=contact.linkedin_url,
+            designation=contact.designation,
+            company=contact.company,
+            category=contact.category,
+            last_contacted=contact.last_contacted,
+            status=contact.status
         ))
 
     total_pages = ceil(total / page_size) if page_size else 1

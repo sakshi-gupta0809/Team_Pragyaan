@@ -1,0 +1,13 @@
+Neutrino Tech Systems is a leading healthcare IT solutions provider specializing in innovative software platforms for hospitals, clinics, and pharmaceutical companies. Our flagship product, Neutrino Connect, enables seamless integration between different healthcare systems while ensuring HIPAA compliance and data security.
+
+We focus on simplifying complex healthcare workflows through automation, AI-driven analytics, and user-friendly interfaces. Our solutions help healthcare providers improve patient outcomes, reduce administrative burden, and optimize operational efficiency.
+
+Founded in 2016, Neutrino Tech Systems has rapidly grown to serve over 200 healthcare organizations across North America and Europe. Our team consists of experienced healthcare professionals, software engineers, and data scientists committed to transforming healthcare through technology.
+
+Our core competencies include:
+- Healthcare system integration and interoperability
+- Clinical workflow optimization
+- Medical data analytics and visualization
+- Regulatory compliance (HIPAA, GDPR, FDA)
+- Patient engagement platforms
+- Revenue cycle management

@@ -14,8 +14,15 @@ COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+# Explicitly install OpenAI package to ensure it's available
+RUN pip install --no-cache-dir openai>=1.0.0
 
 # Copy the entire app folder into the container
+# Copy Docker-specific env file and make it more visible in the container logs
+RUN echo "Setting up OpenAI environment for container..."
+COPY .env.docker /app/.env
+
+# Copy the app code
 COPY ./app ./app
 
 # Expose FastAPI port

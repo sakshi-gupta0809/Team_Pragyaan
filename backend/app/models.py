@@ -22,8 +22,14 @@ class Contact(Base):
     name = Column(String, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     linkedin_url = Column(String, nullable=True)
-    extra_data = Column(JSON, nullable=True)  # store phone, company, etc.
+    designation = Column(String, nullable=True, index=True)  # Job title or role
+    company = Column(String, nullable=True, index=True)
+    industry = Column(String, nullable=True)
+    category = Column(String, nullable=True, index=True)  # Clinical, IT, R&D, etc.
+    extra_data = Column(JSON, nullable=True)  # store phone, location, etc.
     unsubscribed = Column(Boolean, default=False)  # unsubscribe flag
+    last_contacted = Column(DateTime(timezone=True), nullable=True)  # Test field for auto migration
+    status = Column(String, default="active", nullable=True)  # Test field for auto migration
 
     # Relationships
     campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True)
@@ -37,6 +43,9 @@ class Campaign(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     description = Column(Text, nullable=True)
+    scenario = Column(String, default="cold_outreach", index=True)  # cold_outreach, conference, etc.
+    start_date = Column(DateTime(timezone=True), nullable=True)  # When to start sending
+    followup_gap_days = Column(Integer, default=2)  # Default follow-up gap in business days
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     status = Column(String, default="draft", index=True)  # draft, sent, scheduled, paused
@@ -64,6 +73,8 @@ class EmailTemplate(Base):
     id = Column(Integer, primary_key=True, index=True)
     subject = Column(String, nullable=False)
     body = Column(Text, nullable=False)
+    category = Column(String, nullable=True, index=True)  # Which contact category this template is for
+    step = Column(Integer, default=1)  # Email step (1 for initial, 2+ for follow-ups)
 
     campaign_id = Column(Integer, ForeignKey("campaigns.id"))
     campaign = relationship("Campaign", back_populates="templates")
@@ -75,10 +86,14 @@ class EmailLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     recipient_email = Column(String, nullable=False)
+    recipient_name = Column(String, nullable=True)
+    recipient_company = Column(String, nullable=True)
+    recipient_category = Column(String, nullable=True)  # Category of the recipient
     subject = Column(String, nullable=False)
     body = Column(Text, nullable=False)
     status = Column(String, default="pending")  # pending, sent, bounced, replied
     sent_at = Column(DateTime(timezone=True), nullable=True)
+    step = Column(Integer, default=1)  # Email step (1 for initial, 2+ for follow-ups)
 
     # AI Enhancements
     predicted_best_time = Column(DateTime(timezone=True), nullable=True)
@@ -92,6 +107,10 @@ class EmailLog(Base):
 
     campaign_id = Column(Integer, ForeignKey("campaigns.id"))
     campaign = relationship("Campaign", back_populates="emails")
+    
+    # Recipient contact
+    contact_id = Column(Integer, ForeignKey("contacts.id"), nullable=True)
+    contact = relationship("Contact")
 
 
 # -------------------- Schedule --------------------

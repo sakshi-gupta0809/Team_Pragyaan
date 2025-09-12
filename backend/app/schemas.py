@@ -22,9 +22,15 @@ class ContactCreate(BaseModel):
     name: str
     email: EmailStr
     linkedin_url: Optional[str] = None
+    designation: Optional[str] = None
+    company: Optional[str] = None
+    industry: Optional[str] = None
+    category: Optional[str] = None
     unsubscribed: bool = False
     campaign_id: Optional[int] = None
-    extra_data: Optional[Dict[str, Any]] = None  # flexible info (phone, company, etc.)
+    extra_data: Optional[Dict[str, Any]] = None  # flexible info (phone, location, etc.)
+    last_contacted: Optional[datetime] = None
+    status: Optional[str] = "active"
 
 
 class Contact(BaseModel):
@@ -32,9 +38,15 @@ class Contact(BaseModel):
     name: str
     email: EmailStr
     linkedin_url: Optional[str]
+    designation: Optional[str]
+    company: Optional[str]
+    industry: Optional[str]
+    category: Optional[str]
     unsubscribed: bool
     campaign_id: Optional[int]
     extra_data: Optional[Dict[str, Any]]
+    last_contacted: Optional[datetime]
+    status: Optional[str]
 
     class Config:
         orm_mode = True
@@ -45,6 +57,9 @@ class ContactResponse(BaseModel):
     id: int
     name: str
     email: EmailStr
+    designation: Optional[str]
+    company: Optional[str]
+    category: Optional[str]
     campaign_name: Optional[str]
     unsubscribed: bool
     linkedin_url: Optional[str]
@@ -65,9 +80,14 @@ class ContactOut(BaseModel):
     id: int
     name: str
     email: EmailStr
+    designation: Optional[str]
+    company: Optional[str]
+    category: Optional[str]
     campaign_name: Optional[str]
     unsubscribed: bool
     linkedin_url: Optional[str]
+    last_contacted: Optional[datetime] = None
+    status: Optional[str] = None
 
     class Config:
         orm_mode = True
@@ -85,6 +105,9 @@ class ContactsListOut(BaseModel):
 class CampaignCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    scenario: Optional[str] = "cold_outreach"
+    start_date: Optional[datetime] = None
+    followup_gap_days: Optional[int] = 2
     status: Optional[str] = "draft"
 
 
@@ -92,6 +115,9 @@ class Campaign(BaseModel):
     id: int
     name: str
     description: Optional[str]
+    scenario: str = "cold_outreach"
+    start_date: Optional[datetime]
+    followup_gap_days: int = 2
     created_at: datetime
     updated_at: datetime
     status: str = "draft"
@@ -130,12 +156,16 @@ class PaginatedCampaigns(BaseModel):
 class EmailTemplateCreate(BaseModel):
     subject: str
     body: str
+    category: Optional[str] = None
+    step: int = 1
 
 
 class EmailTemplate(BaseModel):
     id: int
     subject: str
     body: str
+    category: Optional[str]
+    step: int = 1
 
     class Config:
         orm_mode = True
@@ -144,22 +174,33 @@ class EmailTemplate(BaseModel):
 # -------------------- Email Log --------------------
 class EmailLogCreate(BaseModel):
     recipient_email: EmailStr
+    recipient_name: Optional[str] = None
+    recipient_company: Optional[str] = None
+    recipient_category: Optional[str] = None
     subject: str
     body: str
+    step: int = 1
+    contact_id: Optional[int] = None
 
 
 class EmailLog(BaseModel):
     id: int
     recipient_email: EmailStr
+    recipient_name: Optional[str]
+    recipient_company: Optional[str]
+    recipient_category: Optional[str]
     subject: str
     body: str
     status: str
     sent_at: Optional[datetime]
+    step: int = 1
 
     # AI fields
     predicted_best_time: Optional[datetime] = None
     engagement_score: Optional[float] = None
     compliance_flags: Optional[Dict[str, Any]] = None
+    
+    contact_id: Optional[int] = None
 
     class Config:
         orm_mode = True

@@ -1,16 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Mail, Users, BarChart3, Settings, Calendar, HelpCircle, LogOut,
-  Search, Bell, Plus, Upload, TrendingUp, Eye, MousePointer, Bot, PieChart, MoreVertical, Pause, Play, Square,
-  Send
+  Mail, Users, BarChart3, Settings, HelpCircle, LogOut,
+  Search, Bell, Plus, Upload, TrendingUp, Eye, MousePointer, MoreVertical, Pause, Play, Square,
+  Send, ChevronLeft, ChevronRight, PlusCircle, RefreshCw, ExternalLink, Clock, User, ArrowUpRight,
+  Calendar
 } from 'lucide-react';
 import ContactsPage from './ContactsPage';
 import CampaignsInterface from './CampaignsInterface';
+import NeutrinoCampaignWorkflow from './neutrino/NeutrinoCampaignWorkflow';
 
 const Dashboard = () => {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [activeTimer, setActiveTimer] = useState(true);
   const [timerTime, setTimerTime] = useState('01:24:08');
+  
+  // Calendar-related state
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [events, setEvents] = useState([]);
   const [showNewCampaignModal, setShowNewCampaignModal] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState('');
   const [newCampaignDescription, setNewCampaignDescription] = useState('');
@@ -21,9 +27,31 @@ const Dashboard = () => {
   const [selectedCampaignId, setSelectedCampaignId] = useState(1);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = React.useRef(null);
+  
+  // Enhanced calendar functionality
+  const [activeDate, setActiveDate] = useState(new Date());
+  const [showAddEventModal, setShowAddEventModal] = useState(false);
+  const [newEventTitle, setNewEventTitle] = useState('');
+  const [newEventStartTime, setNewEventStartTime] = useState('09:00');
+  const [newEventEndTime, setNewEventEndTime] = useState('10:00');
+  const [newEventType, setNewEventType] = useState('meeting');
+  const [newEventColor, setNewEventColor] = useState('bg-emerald-500');
+  const [showEditEventModal, setShowEditEventModal] = useState(false);
+  const [currentEvent, setCurrentEvent] = useState(null);
 
   // State for data
-  const [stats, setStats] = useState({});
+  const [stats, setStats] = useState({
+    total_campaigns: 0,
+    total_contacts: 0,
+    emails_sent: 0,
+    open_rate: 0,
+    click_rate: 0,
+    earnings: 2890,
+    totalBalance: '2M',
+    bookings: 24,
+    demographics: 20,
+    weekly_stats: { emails_sent: [], opens: [], responses: [] }
+  });
   const [recentCampaigns, setRecentCampaigns] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [schedules, setSchedules] = useState([]);
@@ -37,13 +65,52 @@ const Dashboard = () => {
 
   const toggleTimer = () => setActiveTimer(!activeTimer);
 
+  // Days of week for calendar
+  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  
+  // Format date for display
+  const formatDate = (date) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    
+    return {
+      day: date.getDate(),
+      month: months[date.getMonth()],
+      year: date.getFullYear(),
+      dayName: days[date.getDay()]
+    };
+  };
+  
+  // Get current month days
+  const getDaysInMonth = () => {
+    const date = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    const days = [];
+    while (date.getMonth() === selectedDate.getMonth()) {
+      days.push(new Date(date));
+      date.setDate(date.getDate() + 1);
+    }
+    return days;
+  };
+
+  // Navigate to previous month
+  const goToPreviousMonth = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setMonth(newDate.getMonth() - 1);
+    setSelectedDate(newDate);
+  };
+
+  // Navigate to next month
+  const goToNextMonth = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setMonth(newDate.getMonth() + 1);
+    setSelectedDate(newDate);
+  };
+
   const navigationItems = [
-    { id: 'dashboard', name: 'Dashboard', icon: BarChart3 },
-    { id: 'campaigns', name: 'Campaigns', icon: Mail, badge: '12' },
-    { id: 'contacts', name: 'Contacts', icon: Users },
-    { id: 'calendar', name: 'Calendar', icon: Calendar },
-    { id: 'analytics', name: 'Analytics', icon: PieChart },
-    { id: 'ai-services', name: 'AI Services', icon: Bot }
+    { id: 'dashboard', name: 'Dashboard', icon: BarChart3, active: activeSection === 'dashboard' },
+    { id: 'campaigns', name: 'Campaigns', icon: Mail, badge: '12', active: activeSection === 'campaigns' },
+    { id: 'contacts', name: 'Contacts', icon: Users, active: activeSection === 'contacts' },
+    { id: 'neutrino', name: 'Create Campaign', icon: PlusCircle, active: activeSection === 'neutrino' }
   ];
 
   const generalItems = [
@@ -52,6 +119,161 @@ const Dashboard = () => {
     { id: 'logout', name: 'Logout', icon: LogOut }
   ];
 
+  // Get events for a specific date
+  const getEventsForDate = (date) => {
+    return events.filter(event => {
+      if (!event.date) return false;
+      const eventDate = new Date(event.date);
+      return eventDate.getDate() === date.getDate() &&
+             eventDate.getMonth() === date.getMonth() &&
+             eventDate.getFullYear() === date.getFullYear();
+    });
+  };
+
+  // Check if a date has any events
+  const hasEvents = (date) => {
+    return getEventsForDate(date).length > 0;
+  };
+
+  // Add new event
+  const handleAddEvent = () => {
+    if (!newEventTitle) {
+      showToast("Event title is required", "error");
+      return;
+    }
+
+    const formattedTime = `${newEventStartTime} — ${newEventEndTime}`;
+    
+    const newEvent = {
+      id: Date.now(), // Use timestamp for unique ID
+      title: newEventTitle,
+      time: formattedTime,
+      type: newEventType,
+      color: newEventColor,
+      date: new Date(activeDate)
+    };
+
+    setEvents([...events, newEvent]);
+    setNewEventTitle('');
+    setNewEventStartTime('09:00');
+    setNewEventEndTime('10:00');
+    setShowAddEventModal(false);
+    showToast(`Event "${newEventTitle}" added successfully!`, "success");
+  };
+
+  // Edit existing event
+  const handleEditEvent = () => {
+    if (!currentEvent) return;
+    if (!newEventTitle) {
+      showToast("Event title is required", "error");
+      return;
+    }
+
+    const formattedTime = `${newEventStartTime} — ${newEventEndTime}`;
+    
+    const updatedEvents = events.map(event => {
+      if (event.id === currentEvent.id) {
+        return {
+          ...event,
+          title: newEventTitle,
+          time: formattedTime,
+          type: newEventType,
+          color: newEventColor
+        };
+      }
+      return event;
+    });
+
+    setEvents(updatedEvents);
+    setShowEditEventModal(false);
+    showToast(`Event "${newEventTitle}" updated successfully!`, "success");
+  };
+
+  // Delete event
+  const handleDeleteEvent = (eventId) => {
+    const updatedEvents = events.filter(event => event.id !== eventId);
+    setEvents(updatedEvents);
+    setShowEditEventModal(false);
+    showToast("Event deleted successfully!", "success");
+  };
+
+  // Set current event for editing
+  const openEditEventModal = (event) => {
+    setCurrentEvent(event);
+    setNewEventTitle(event.title);
+    // Parse time from "HH:MM — HH:MM" format
+    const timeParts = event.time.split(' — ');
+    setNewEventStartTime(timeParts[0]);
+    setNewEventEndTime(timeParts[1]);
+    setNewEventType(event.type);
+    setNewEventColor(event.color);
+    setShowEditEventModal(true);
+  };
+
+  // Load initial events
+  useEffect(() => {
+    // Generate dates for the sample events (today and upcoming days)
+    const today = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(today.getDate() + 1);
+    const dayAfterTomorrow = new Date();
+    dayAfterTomorrow.setDate(today.getDate() + 2);
+    
+    setEvents([
+      {
+        id: 1,
+        title: 'Email Campaign Launch',
+        time: '09:00 AM — 10:00 AM',
+        type: 'meeting',
+        color: 'bg-emerald-500',
+        date: today
+      },
+      {
+        id: 2,
+        title: 'Content Review',
+        time: '11:00 AM — 12:30 PM',
+        type: 'work',
+        color: 'bg-amber-400',
+        date: tomorrow
+      },
+      {
+        id: 3,
+        title: 'Team Strategy Session',
+        time: '02:00 PM — 03:30 PM',
+        type: 'development',
+        color: 'bg-rose-400',
+        date: dayAfterTomorrow
+      }
+    ]);
+  }, []);
+
+  // Active bookings data
+  const activeBookings = [
+    {
+      id: 1,
+      title: 'Weekly Newsletter',
+      time: '12:30 - 15:45',
+      participants: [
+        { initials: 'JD', bgColor: 'bg-blue-500' },
+        { initials: 'AM', bgColor: 'bg-green-500' },
+        { initials: 'RK', bgColor: 'bg-red-500' }
+      ],
+      type: 'team',
+      status: 'active'
+    },
+    {
+      id: 2,
+      title: 'Cold Outreach Review',
+      time: '16:30 - 20:00',
+      participants: [
+        { initials: 'SM', bgColor: 'bg-purple-500' },
+        { initials: 'TG', bgColor: 'bg-yellow-500' }
+      ],
+      type: 'meeting',
+      status: 'active'
+    }
+  ];
+  
   // Fetch all backend data on mount
   useEffect(() => {
     const fetchData = async () => {
@@ -59,20 +281,23 @@ const Dashboard = () => {
       setApiError(null);
 
       // Helper function to handle individual fetch operations
-      const fetchEndpoint = async (url, setter, name, fallbackData = null) => {
+      const fetchEndpoint = async (url, setter, name) => {
         try {
-          const response = await fetch(url, {
-            mode: 'cors'
+          // Make sure we're using the full backend URL
+          const fullUrl = url.startsWith('http') ? url : `http://localhost:8000${url}`;
+          console.log(`Fetching from: ${fullUrl}`);
+          
+          const response = await fetch(fullUrl, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json'
+            },
+            mode: 'cors',
+            credentials: 'omit'
           });
           if (response.ok) {
             setter(await response.json());
           } else {
-            if (fallbackData) {
-              console.log(`Using fallback data for ${name} due to missing endpoint`);
-              setter(fallbackData);
-              return; // Don't throw error if we have fallback data
-            }
-            
             let errorMessage = `Failed to fetch ${name}`;
             try {
               const errorData = await response.json();
@@ -85,91 +310,104 @@ const Dashboard = () => {
             throw new Error(errorMessage);
           }
         } catch (error) {
-          if (fallbackData) {
-            console.log(`Using fallback data for ${name} due to connection error`);
-            setter(fallbackData);
-            return; // Don't throw error if we have fallback data
-          }
-          
           const errorMessage = error.message === "Failed to fetch"
             ? "Network error: Please check your connection to the backend server"
             : error.message;
           
           console.error(`Error fetching ${name}:`, errorMessage);
-          showToast(errorMessage, "error");
-          throw error;
+          showToast(`${name} data unavailable. Using demo data.`, "error");
+          
+          // Provide appropriate fallback data based on the endpoint type
+          if (name === "campaigns") {
+            setter([
+              { id: 1, name: "Demo Campaign 1", status: "active", sent: 45, opened: 20, responded: 5 },
+              { id: 2, name: "Demo Campaign 2", status: "scheduled", sent: 0, opened: 0, responded: 0 }
+            ]);
+          } else if (name === "contacts") {
+            setter([
+              { id: 1, name: "John Demo", email: "john@example.com", status: "active" },
+              { id: 2, name: "Jane Demo", email: "jane@example.com", status: "active" }
+            ]);
+          } else if (name === "analytics data") {
+            setter({ total_emails: 0, open_rate: 0, response_rate: 0, ai_services: [], weekly_stats: { emails_sent: [], opens: [], responses: [] } });
+          } else {
+            setter([]);
+          }
         }
       };
 
       try {
-        // Create comprehensive mock data for development
-        const mockAnalyticsData = {
-          total_emails: 1250,
-          open_rate: 0.42,
-          response_rate: 0.18,
-          ai_services: [
-            { name: "Optimal Send Time", status: "active" },
-            { name: "Response Prediction", status: "active" },
-            { name: "Compliance Check", status: "active" }
-          ],
-          weekly_stats: {
-            emails_sent: [32, 45, 38, 52, 48, 25, 40],
-            opens: [18, 25, 19, 30, 28, 15, 22],
-            responses: [5, 8, 6, 10, 9, 4, 7]
-          }
-        };
+        // Initialize default stats is now done in useState initialization
 
-        const mockCampaigns = [
-          { id: 1, name: "Q4 Product Launch", description: "Promoting our new product lineup", created_at: "2025-09-01T10:00:00Z" },
-          { id: 2, name: "Customer Feedback Survey", description: "Annual customer satisfaction survey", created_at: "2025-08-15T14:30:00Z" },
-          { id: 3, name: "Holiday Promotion", description: "Special holiday discounts and offers", created_at: "2025-08-30T09:15:00Z" }
-        ];
-
-        const mockContacts = [
-          { id: 1, name: "John Doe", email: "john@example.com", linkedin_url: "https://linkedin.com/in/johndoe", campaign_id: 1 },
-          { id: 2, name: "Jane Smith", email: "jane@example.com", linkedin_url: "https://linkedin.com/in/janesmith", campaign_id: 1 },
-          { id: 3, name: "Mike Johnson", email: "mike@example.com", linkedin_url: "https://linkedin.com/in/mikejohnson", campaign_id: 2 },
-          { id: 4, name: "Sarah Williams", email: "sarah@example.com", linkedin_url: "https://linkedin.com/in/sarahwilliams", campaign_id: 3 }
-        ];
-
-        const mockSchedules = [
-          { id: 1, send_time: "2025-09-15T09:00:00Z", is_holiday: false, email_log_id: 1 },
-          { id: 2, send_time: "2025-09-16T10:30:00Z", is_holiday: false, email_log_id: 2 },
-          { id: 3, send_time: "2025-09-17T14:00:00Z", is_holiday: false, email_log_id: 3 }
-        ];
-
-        const mockTemplates = [
-          { id: 1, subject: "Check out our new products!", body: "Hi {name}, we're excited to share our latest products...", campaign_id: 1 },
-          { id: 2, subject: "We value your feedback", body: "Hello {name}, your opinion matters to us...", campaign_id: 2 },
-          { id: 3, subject: "Holiday special offers inside", body: "Dear {name}, 'tis the season for great deals...", campaign_id: 3 }
-        ];
-
-        const mockEmailLogs = [
-          { id: 1, recipient_email: "john@example.com", subject: "Check out our new products!", status: "sent", campaign_id: 1 },
-          { id: 2, recipient_email: "jane@example.com", subject: "Check out our new products!", status: "opened", campaign_id: 1 },
-          { id: 3, recipient_email: "mike@example.com", subject: "We value your feedback", status: "clicked", campaign_id: 2 }
-        ];
-
-        // DEVELOPMENT MODE: Use mock data while backend is being fixed
-        console.log("Using mock data in development mode due to backend connection issues");
-        setStats(mockAnalyticsData);
-        setRecentCampaigns(mockCampaigns);
-        setContacts(mockContacts);
-        setSchedules(mockSchedules);
-        setTemplates(mockTemplates);
-        setEmailLogs(mockEmailLogs);
+        // Fetch all data from API endpoints with correct prefixes
+        await fetchEndpoint("/api/campaigns/", (campaignsData) => {
+          setRecentCampaigns(campaignsData);
+          // Update stats with real campaign count
+          setStats(prevStats => ({
+            ...prevStats,
+            total_campaigns: campaignsData.length
+          }));
+        }, "campaigns");
         
-        // Try to fetch real data but fall back to mock data
+        await fetchEndpoint("/api/contacts/", (contactsData) => {
+          setContacts(contactsData);
+          // Update stats with real contact count
+          setStats(prevStats => ({
+            ...prevStats,
+            total_contacts: contactsData.length
+          }));
+        }, "contacts");
+        
+        await fetchEndpoint("/api/schedules/", setSchedules, "schedules");
+        await fetchEndpoint("/api/email_templates/", setTemplates, "email templates");
+        
+        await fetchEndpoint("/api/email_logs/", (logsData) => {
+          setEmailLogs(logsData);
+          // Calculate real email metrics from logs if available
+          if (logsData && logsData.length > 0) {
+            const sentCount = logsData.length;
+            const openCount = logsData.filter(log => log.opened).length;
+            const clickCount = logsData.filter(log => log.clicked).length;
+            
+            setStats(prevStats => ({
+              ...prevStats,
+              emails_sent: sentCount,
+              open_rate: sentCount > 0 ? Math.round((openCount / sentCount) * 100) : 0,
+              click_rate: sentCount > 0 ? Math.round((clickCount / sentCount) * 100) : 0
+            }));
+          }
+        }, "email logs");
+        
+        // Try additional endpoint structures in case the first set of requests failed
         try {
-          await fetchEndpoint("http://localhost:8000/analytics/summary/", setStats, "analytics data", mockAnalyticsData);
-          await fetchEndpoint("http://localhost:8000/campaigns/", setRecentCampaigns, "campaigns", mockCampaigns);
-          await fetchEndpoint("http://localhost:8000/contacts/", setContacts, "contacts", mockContacts);
-          await fetchEndpoint("http://localhost:8000/schedules/", setSchedules, "schedules", mockSchedules);
-          await fetchEndpoint("http://localhost:8000/email_templates/", setTemplates, "email templates", mockTemplates);
-          await fetchEndpoint("http://localhost:8000/email_logs/", setEmailLogs, "email logs", mockEmailLogs);
+          const backendUrl = 'http://localhost:8000';
+          console.log("Trying direct backend endpoints");
+          
+          // Try direct endpoint without /api prefix
+          const campaignsResponse = await fetch(`${backendUrl}/campaigns/`, {
+            headers: { 'Accept': 'application/json' },
+            mode: 'cors'
+          });
+          
+          if (campaignsResponse.ok) {
+            const campaignsData = await campaignsResponse.json();
+            console.log("Found campaigns with direct endpoint:", campaignsData);
+            setRecentCampaigns(campaignsData);
+            setStats(prevStats => ({ ...prevStats, total_campaigns: campaignsData.length }));
+          }
+          
+          // Try with debug endpoint
+          const debugResponse = await fetch(`${backendUrl}/api/debug`, {
+            headers: { 'Accept': 'application/json' },
+            mode: 'cors'
+          });
+          
+          if (debugResponse.ok) {
+            const debugData = await debugResponse.json();
+            console.log("API debug info:", debugData);
+          }
         } catch (error) {
-          console.log("Using mock data due to API connection issues:", error);
-          // We already set mock data above, so no need to do anything here
+          console.error("Error fetching from alternate URLs:", error);
         }
       } catch (err) {
         // Main error is already handled in fetchEndpoint function
@@ -198,17 +436,21 @@ const Dashboard = () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('http://localhost:8000/contacts/import/', {
+      const response = await fetch('/api/contacts/import/', {
         method: 'POST',
+        headers: {
+          'Accept': 'application/json'
+        },
         body: formData,
-        mode: 'cors'
+        mode: 'cors',
+        credentials: 'same-origin'
       });
 
       if (response.ok) {
         const result = await response.json();
         showToast(`Successfully imported ${result.imported_count} contacts`, "success");
         // Refresh contacts list
-        const contactsRes = await fetch("http://localhost:8000/contacts/", {
+        const contactsRes = await fetch("/api/contacts/", {
           mode: 'cors'
         });
         setContacts(await contactsRes.json());
@@ -270,16 +512,18 @@ const Dashboard = () => {
     setApiError(null);
 
     try {
-      const response = await fetch('http://localhost:8000/campaigns/', {
+      const response = await fetch('/api/campaigns/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({
           name: newCampaignName,
           description: newCampaignDescription || '',
         }),
-        mode: 'cors'
+        mode: 'cors',
+        credentials: 'same-origin'
       });
 
       if (response.ok) {
@@ -329,23 +573,25 @@ const handleAddContact = async () => {
   setApiError(null);
 
   try {
-    const response = await fetch(`http://localhost:8000/campaigns/${selectedCampaignId}/contacts/`, {
+    const response = await fetch(`/api/campaigns/${selectedCampaignId}/contacts/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       body: JSON.stringify({
         name: newContactName,
         email: newContactEmail,
         linkedin_url: newContactLinkedIn || null,
       }),
-      mode: 'cors'
+      mode: 'cors',
+      credentials: 'same-origin'
     });
 
     if (response.ok) {
       const newContact = await response.json();
       // Update contacts list
-      const contactsRes = await fetch("http://localhost:8000/contacts/", {
+      const contactsRes = await fetch("/api/contacts/", {
         mode: 'cors'
       });
       const updatedContacts = await contactsRes.json();
@@ -388,20 +634,21 @@ const handleAddContact = async () => {
 
   // Determine current page title
   const getPageTitle = () => {
+    if (activeSection === 'campaigns' || activeSection === 'contacts' || activeSection === 'dashboard') {
+      return '';
+    }
     const item = [...navigationItems, ...generalItems].find(item => item.id === activeSection);
-    return item ? item.name : 'Dashboard';
+    return item ? item.name : '';
   };
 
   const getPageDescription = () => {
     const descriptions = {
-      'dashboard': 'Monitor your email campaigns and track performance metrics',
-      'campaigns': 'Create, manage, and optimize your email campaigns',
-      'contacts': 'Organize and segment your email subscribers',
-      'calendar': 'Schedule and plan your email marketing activities',
-      'analytics': 'Analyze campaign performance and engagement metrics',
-      'ai-services': 'Configure and monitor AI-powered email features',
+      'dashboard': '',
+      'campaigns': '',
+      'contacts': '',
       'settings': 'Configure your account and platform preferences',
-      'help': 'Get support and learn how to use the platform'
+      'help': 'Get support and learn how to use the platform',
+      'neutrino': 'Create a new email campaign'
     };
     return descriptions[activeSection] || '';
   };
@@ -413,29 +660,25 @@ const handleAddContact = async () => {
         return <CampaignsInterface />;
       case 'contacts':
         return <ContactsPage />;
-      case 'calendar':
-        return <SectionCard title="Upcoming Schedules" data={schedules} icon={<Calendar className="w-16 h-16 text-gray-300" />} />;
-      case 'analytics':
-        return <AnalyticsDashboard stats={stats} />;
-      case 'ai-services':
-        return <SectionCard title="AI Services" data={stats.ai_services || []} icon={<Bot className="w-16 h-16 text-gray-300" />} />;
       case 'settings':
         return <SectionCard title="Settings" data={[]} icon={<Settings className="w-16 h-16 text-gray-300" />} />;
       case 'help':
         return <SectionCard title="Help & Support" data={[]} icon={<HelpCircle className="w-16 h-16 text-gray-300" />} />;
+      case 'neutrino':
+        return <NeutrinoCampaignWorkflow onClose={() => setActiveSection('dashboard')} />;
       default:
-        return <DashboardHome 
-                  stats={stats} 
-                  recentCampaigns={recentCampaigns} 
-                  activeTimer={activeTimer} 
-                  toggleTimer={toggleTimer} 
-                  timerTime={timerTime} 
+        return <DashboardHome
+                  stats={stats}
+                  recentCampaigns={recentCampaigns}
+                  activeTimer={activeTimer}
+                  toggleTimer={toggleTimer}
+                  timerTime={timerTime}
                 />;
     }
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-emerald-50 overflow-x-hidden">
       {/* Toast Notification */}
       {toast.visible && (
         <div className={`fixed top-4 right-4 z-50 flex items-center p-4 mb-4 rounded-lg shadow-lg ${
@@ -469,183 +712,606 @@ const handleAddContact = async () => {
           </button>
         </div>
       )}
+      
       {/* Sidebar */}
-      <div className="w-64 bg-white shadow-lg border-r border-gray-100">
+      <div className="w-64 bg-white shadow-lg rounded-3xl m-4">
         <div className="p-6 border-b border-gray-100">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
-              <Mail className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <span className="text-xl font-bold text-gray-900">EmailAI</span>
-              <div className="text-xs text-gray-500">AI-Powered Platform</div>
-            </div>
+          <div>
+            <span className="text-xl font-bold text-gray-900">EmailAI</span>
+            <div className="text-xs text-gray-500">AI-Powered Platform</div>
           </div>
         </div>
-
-        {/* Navigation */}
-        <nav className="mt-6">
-          <MenuSection title="MAIN MENU" items={navigationItems} activeSection={activeSection} setActiveSection={setActiveSection} />
-          <MenuSection title="GENERAL" items={generalItems} activeSection={activeSection} setActiveSection={setActiveSection} />
-        </nav>
+{/* Navigation */}
+<nav className="mt-4 px-4">
+  <MenuSection title="MAIN MENU" items={navigationItems} activeSection={activeSection} setActiveSection={setActiveSection} />
+  <MenuSection title="GENERAL" items={generalItems} activeSection={activeSection} setActiveSection={setActiveSection} />
+</nav>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-hidden bg-slate-50">
-        <DashboardHeader
-          activeTimer={activeTimer}
-          toggleTimer={toggleTimer}
-          timerTime={timerTime}
-          setShowNewCampaignModal={setShowNewCampaignModal}
-          setIsImporting={setIsImporting}
-          fileInputRef={fileInputRef}
-          setShowAddContactModal={setShowAddContactModal}
-          handleFileImport={handleFileImport}
-        />
-        <main className="p-4 max-w-7xl mx-auto">
-          <div className="mb-8">
+      <div className="flex-1 p-4 w-full overflow-x-auto">
+        <div className="bg-white rounded-3xl p-6 h-full w-full">
+          <DashboardHeader
+            activeTimer={activeTimer}
+            toggleTimer={toggleTimer}
+            timerTime={timerTime}
+            setShowNewCampaignModal={setShowNewCampaignModal}
+            setIsImporting={setIsImporting}
+            fileInputRef={fileInputRef}
+            setShowAddContactModal={setShowAddContactModal}
+            handleFileImport={handleFileImport}
+          />
+          
+          <div className="mb-6 w-full">
             <h1 className="text-2xl font-bold text-gray-900 mb-1">{getPageTitle()}</h1>
             <p className="text-gray-600 text-base">{getPageDescription()}</p>
           </div>
-    
-          {/* New Campaign Modal */}
-          {showNewCampaignModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl p-6 shadow-lg w-full max-w-md">
-                <h3 className="text-xl font-bold mb-4">Create New Campaign</h3>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Campaign Name</label>
-                  <input
-                    type="text"
-                    value={newCampaignName}
-                    onChange={(e) => setNewCampaignName(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    placeholder="Enter campaign name"
-                  />
-                </div>
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
-                  <textarea
-                    value={newCampaignDescription}
-                    onChange={(e) => setNewCampaignDescription(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    placeholder="Enter campaign description"
-                    rows="3"
-                  ></textarea>
-                </div>
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={() => setShowNewCampaignModal(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleCreateCampaign}
-                    disabled={isLoading}
-                    className={`px-4 py-2 bg-orange-500 text-white rounded-lg ${isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-orange-600'} flex items-center justify-center`}
-                  >
-                    {isLoading ? (
-                      <>
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Creating...
-                      </>
-                    ) : (
-                      'Create Campaign'
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
           
-          {/* Add Contact Modal */}
-          {showAddContactModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl p-6 shadow-lg w-full max-w-md">
-                <h3 className="text-xl font-bold mb-4">Add New Contact</h3>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Campaign</label>
-                  <select
-                    value={selectedCampaignId}
-                    onChange={(e) => setSelectedCampaignId(parseInt(e.target.value))}
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  >
-                    {recentCampaigns.map(campaign => (
-                      <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
+          {/* Content Grid */}
+          <div className="flex flex-wrap">
+            {/* Left content */}
+            <div className={`${activeSection === 'campaigns' || activeSection === 'contacts' || activeSection === 'neutrino' ? 'w-full' : 'w-3/5 pr-6'}`}>
+              {/* New Campaign Modal */}
+              {showNewCampaignModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className="bg-white rounded-2xl p-6 shadow-lg w-full max-w-md">
+                    <h3 className="text-xl font-bold mb-4">Create New Campaign</h3>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Campaign Name</label>
+                      <input
+                        type="text"
+                        value={newCampaignName}
+                        onChange={(e) => setNewCampaignName(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                        placeholder="Enter campaign name"
+                      />
+                    </div>
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+                      <textarea
+                        value={newCampaignDescription}
+                        onChange={(e) => setNewCampaignDescription(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                        placeholder="Enter campaign description"
+                        rows="3"
+                      ></textarea>
+                    </div>
+                    <div className="flex justify-end space-x-3">
+                      <button
+                        onClick={() => setShowNewCampaignModal(false)}
+                        className="px-4 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleCreateCampaign}
+                        disabled={isLoading}
+                        className={`px-4 py-2 bg-emerald-600 text-white rounded-xl ${isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-emerald-700'} flex items-center justify-center`}
+                      >
+                        {isLoading ? (
+                          <>
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Creating...
+                          </>
+                        ) : (
+                          'Create Campaign'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Add Contact Modal */}
+              {showAddContactModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className="bg-white rounded-2xl p-6 shadow-lg w-full max-w-md">
+                    <h3 className="text-xl font-bold mb-4">Add New Contact</h3>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Campaign</label>
+                      <select
+                        value={selectedCampaignId}
+                        onChange={(e) => setSelectedCampaignId(parseInt(e.target.value))}
+                        className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                      >
+                        {recentCampaigns.map(campaign => (
+                          <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Name*</label>
+                      <input
+                        type="text"
+                        value={newContactName}
+                        onChange={(e) => setNewContactName(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                        placeholder="Enter contact name"
+                        required
+                      />
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email*</label>
+                      <input
+                        type="email"
+                        value={newContactEmail}
+                        onChange={(e) => setNewContactEmail(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                        placeholder="Enter contact email"
+                        required
+                      />
+                    </div>
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">LinkedIn URL (optional)</label>
+                      <input
+                        type="url"
+                        value={newContactLinkedIn}
+                        onChange={(e) => setNewContactLinkedIn(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                        placeholder="Enter LinkedIn profile URL"
+                      />
+                    </div>
+                    <div className="flex justify-end space-x-3">
+                      <button
+                        onClick={() => setShowAddContactModal(false)}
+                        className="px-4 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleAddContact}
+                        disabled={isLoading}
+                        className={`px-4 py-2 bg-emerald-600 text-white rounded-xl ${isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-emerald-700'} flex items-center justify-center`}
+                      >
+                        {isLoading ? (
+                          <>
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Adding...
+                          </>
+                        ) : (
+                          'Add Contact'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Main dashboard content */}
+              {renderContent()}
+            </div>
+            
+            {/* Right Content (Calendar) */}
+            {activeSection === 'dashboard' && (
+              <div className="w-2/5 flex-shrink-0">
+                {/* Date Header */}
+                <div className="mb-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h2 className="text-3xl font-bold">
+                        {formatDate(selectedDate).month}, {formatDate(selectedDate).day} <span className="font-normal text-gray-500">{formatDate(selectedDate).dayName}</span>
+                      </h2>
+                    </div>
+                    <div className="flex">
+                      <button
+                        onClick={goToPreviousMonth}
+                        className="p-2 text-gray-400 hover:text-gray-600"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={goToNextMonth}
+                        className="p-2 text-gray-400 hover:text-gray-600"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Calendar */}
+                <div className="mb-8">
+                  {/* Days of week */}
+                  <div className="grid grid-cols-7 mb-2">
+                    {weekDays.map((day, index) => (
+                      <div key={index} className="text-center text-sm text-gray-500 py-2">
+                        {day}
+                      </div>
                     ))}
-                  </select>
+                  </div>
+                  
+                  {/* Calendar grid */}
+                  <div className="grid grid-cols-7 gap-2">
+                    {(() => {
+                      // Get first day of the month
+                      const firstDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+                      // Get day of the week for first day (0-6, where 0 is Sunday)
+                      const firstDayOfWeek = firstDay.getDay();
+                      // Get days in current month
+                      const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
+                      // Get days in previous month
+                      const daysInPrevMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 0).getDate();
+                      
+                      // Create array of all calendar cells
+                      const calendarDays = [];
+                      
+                      // Add previous month days
+                      for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+                        calendarDays.push({
+                          day: daysInPrevMonth - i,
+                          currentMonth: false,
+                          highlight: false
+                        });
+                      }
+                      
+                      // Add current month days
+                      const currentDate = new Date();
+                      const isCurrentMonth = currentDate.getMonth() === selectedDate.getMonth() &&
+                                            currentDate.getFullYear() === selectedDate.getFullYear();
+                      
+                      for (let i = 1; i <= daysInMonth; i++) {
+                        // Create date object for this day
+                        const dayDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), i);
+                        
+                        // Check if this date has events
+                        const dayHasEvents = hasEvents(dayDate);
+                        
+                        // Highlight selected day
+                        let highlight = false;
+                        let highlightColor = '';
+                        
+                        // Check if this is the active date
+                        const isSelectedDate =
+                          activeDate.getDate() === i &&
+                          activeDate.getMonth() === selectedDate.getMonth() &&
+                          activeDate.getFullYear() === selectedDate.getFullYear();
+                        
+                        if (isSelectedDate) {
+                          highlight = true;
+                          highlightColor = 'bg-emerald-600';
+                        } else if (isCurrentMonth && i === currentDate.getDate()) {
+                          // Highlight current day if viewing current month
+                          highlight = true;
+                          highlightColor = 'bg-blue-500';
+                        }
+                        
+                        calendarDays.push({
+                          day: i,
+                          currentMonth: true,
+                          highlight,
+                          highlightColor
+                        });
+                      }
+                      
+                      // Add next month days to fill the grid
+                      const totalCells = Math.ceil((firstDayOfWeek + daysInMonth) / 7) * 7;
+                      const nextMonthDays = totalCells - calendarDays.length;
+                      
+                      for (let i = 1; i <= nextMonthDays; i++) {
+                        calendarDays.push({
+                          day: i,
+                          currentMonth: false,
+                          highlight: false
+                        });
+                      }
+                      
+                      // Render calendar cells
+                      return calendarDays.map((day, index) => {
+                        // Create date object for this day (only for current month days)
+                        let dayDate = null;
+                        let dayHasEvents = false;
+                        
+                        if (day.currentMonth) {
+                          dayDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day.day);
+                          dayHasEvents = hasEvents(dayDate);
+                        }
+                        
+                        return (
+                          <div
+                            key={index}
+                            onClick={() => {
+                              if (day.currentMonth) {
+                                // Set the active date to this day
+                                const newDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day.day);
+                                setActiveDate(newDate);
+                              }
+                            }}
+                            className={`text-center py-2 ${
+                              !day.currentMonth ? 'text-gray-300' : 'cursor-pointer hover:bg-gray-100 rounded-lg'
+                            }`}
+                          >
+                            <div className="relative">
+                              {day.highlight ? (
+                                <div className={`w-8 h-8 rounded-full ${day.highlightColor} text-white mx-auto flex items-center justify-center`}>
+                                  {day.day}
+                                </div>
+                              ) : (
+                                <div className="w-8 h-8 mx-auto flex items-center justify-center">
+                                  {day.day}
+                                </div>
+                              )}
+                              
+                              {/* Event indicator dot */}
+                              {day.currentMonth && dayHasEvents && (
+                                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
                 </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name*</label>
-                  <input
-                    type="text"
-                    value={newContactName}
-                    onChange={(e) => setNewContactName(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    placeholder="Enter contact name"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email*</label>
-                  <input
-                    type="email"
-                    value={newContactEmail}
-                    onChange={(e) => setNewContactEmail(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    placeholder="Enter contact email"
-                    required
-                  />
-                </div>
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">LinkedIn URL (optional)</label>
-                  <input
-                    type="url"
-                    value={newContactLinkedIn}
-                    onChange={(e) => setNewContactLinkedIn(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    placeholder="Enter LinkedIn profile URL"
-                  />
-                </div>
-                <div className="flex justify-end space-x-3">
+                
+                {/* Selected Date Information */}
+                <div className="mt-6 mb-4">
+                  <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                    Events for {formatDate(activeDate).month} {formatDate(activeDate).day}, {formatDate(activeDate).year}
+                  </h3>
+                  
+                  {/* Add Event Button */}
                   <button
-                    onClick={() => setShowAddContactModal(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                    onClick={() => setShowAddEventModal(true)}
+                    className="flex items-center text-sm text-emerald-600 hover:text-emerald-800 mb-3"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleAddContact}
-                    disabled={isLoading}
-                    className={`px-4 py-2 bg-orange-500 text-white rounded-lg ${isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-orange-600'} flex items-center justify-center`}
-                  >
-                    {isLoading ? (
-                      <>
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Adding...
-                      </>
-                    ) : (
-                      'Add Contact'
-                    )}
+                    <PlusCircle className="w-4 h-4 mr-1" />
+                    Add Event
                   </button>
                 </div>
+                
+                {/* Events for selected date */}
+                <div className="space-y-3">
+                  {getEventsForDate(activeDate).length > 0 ? (
+                    getEventsForDate(activeDate).map(event => (
+                      <div
+                        key={event.id}
+                        onClick={() => openEditEventModal(event)}
+                        className={`rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow ${
+                          event.color === 'bg-emerald-500' ? 'bg-emerald-100 border-l-4 border-emerald-500' :
+                          event.color === 'bg-amber-400' ? 'bg-amber-100 border-l-4 border-amber-400' :
+                          'bg-rose-100 border-l-4 border-rose-400'
+                        }`}
+                      >
+                        <div className="flex">
+                          <div className={`w-8 h-8 rounded-full ${event.color} mr-2 flex items-center justify-center`}>
+                            {event.type === 'meeting' ? (
+                              <User className="w-4 h-4 text-white" />
+                            ) : event.type === 'work' ? (
+                              <PlusCircle className="w-4 h-4 text-white" />
+                            ) : (
+                              <Code className="w-4 h-4 text-white" />
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="font-medium">{event.title}</h4>
+                            <div className="text-xs text-gray-500">{event.time}</div>
+                          </div>
+                          <div className="ml-auto">
+                            <button className="text-gray-400 hover:text-gray-600">
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg">
+                      No events scheduled for this date
+                    </div>
+                  )}
+                </div>
+                {/* Add Event Modal */}
+                {showAddEventModal && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-2xl p-6 shadow-lg w-full max-w-md">
+                      <h3 className="text-xl font-bold mb-4">Add New Event</h3>
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Event Title*</label>
+                        <input
+                          type="text"
+                          value={newEventTitle}
+                          onChange={(e) => setNewEventTitle(e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                          placeholder="Enter event title"
+                          required
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                          <input
+                            type="time"
+                            value={newEventStartTime}
+                            onChange={(e) => setNewEventStartTime(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                          <input
+                            type="time"
+                            value={newEventEndTime}
+                            onChange={(e) => setNewEventEndTime(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                          />
+                        </div>
+                      </div>
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
+                        <select
+                          value={newEventType}
+                          onChange={(e) => setNewEventType(e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                        >
+                          <option value="meeting">Meeting</option>
+                          <option value="work">Work</option>
+                          <option value="development">Development</option>
+                        </select>
+                      </div>
+                      <div className="mb-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => setNewEventColor('bg-emerald-500')}
+                            className={`w-8 h-8 rounded-full bg-emerald-500 ${newEventColor === 'bg-emerald-500' ? 'ring-2 ring-offset-2 ring-emerald-500' : ''}`}
+                          ></button>
+                          <button
+                            onClick={() => setNewEventColor('bg-amber-400')}
+                            className={`w-8 h-8 rounded-full bg-amber-400 ${newEventColor === 'bg-amber-400' ? 'ring-2 ring-offset-2 ring-amber-400' : ''}`}
+                          ></button>
+                          <button
+                            onClick={() => setNewEventColor('bg-rose-400')}
+                            className={`w-8 h-8 rounded-full bg-rose-400 ${newEventColor === 'bg-rose-400' ? 'ring-2 ring-offset-2 ring-rose-400' : ''}`}
+                          ></button>
+                          <button
+                            onClick={() => setNewEventColor('bg-blue-500')}
+                            className={`w-8 h-8 rounded-full bg-blue-500 ${newEventColor === 'bg-blue-500' ? 'ring-2 ring-offset-2 ring-blue-500' : ''}`}
+                          ></button>
+                        </div>
+                      </div>
+                      <div className="flex justify-end space-x-3">
+                        <button
+                          onClick={() => setShowAddEventModal(false)}
+                          className="px-4 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleAddEvent}
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700"
+                        >
+                          Add Event
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Edit Event Modal */}
+                {showEditEventModal && currentEvent && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-2xl p-6 shadow-lg w-full max-w-md">
+                      <h3 className="text-xl font-bold mb-4">Edit Event</h3>
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Event Title*</label>
+                        <input
+                          type="text"
+                          value={newEventTitle}
+                          onChange={(e) => setNewEventTitle(e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                          placeholder="Enter event title"
+                          required
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                          <input
+                            type="time"
+                            value={newEventStartTime}
+                            onChange={(e) => setNewEventStartTime(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                          <input
+                            type="time"
+                            value={newEventEndTime}
+                            onChange={(e) => setNewEventEndTime(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                          />
+                        </div>
+                      </div>
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
+                        <select
+                          value={newEventType}
+                          onChange={(e) => setNewEventType(e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                        >
+                          <option value="meeting">Meeting</option>
+                          <option value="work">Work</option>
+                          <option value="development">Development</option>
+                        </select>
+                      </div>
+                      <div className="mb-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => setNewEventColor('bg-emerald-500')}
+                            className={`w-8 h-8 rounded-full bg-emerald-500 ${newEventColor === 'bg-emerald-500' ? 'ring-2 ring-offset-2 ring-emerald-500' : ''}`}
+                          ></button>
+                          <button
+                            onClick={() => setNewEventColor('bg-amber-400')}
+                            className={`w-8 h-8 rounded-full bg-amber-400 ${newEventColor === 'bg-amber-400' ? 'ring-2 ring-offset-2 ring-amber-400' : ''}`}
+                          ></button>
+                          <button
+                            onClick={() => setNewEventColor('bg-rose-400')}
+                            className={`w-8 h-8 rounded-full bg-rose-400 ${newEventColor === 'bg-rose-400' ? 'ring-2 ring-offset-2 ring-rose-400' : ''}`}
+                          ></button>
+                          <button
+                            onClick={() => setNewEventColor('bg-blue-500')}
+                            className={`w-8 h-8 rounded-full bg-blue-500 ${newEventColor === 'bg-blue-500' ? 'ring-2 ring-offset-2 ring-blue-500' : ''}`}
+                          ></button>
+                        </div>
+                      </div>
+                      <div className="flex justify-between">
+                        <button
+                          onClick={() => handleDeleteEvent(currentEvent.id)}
+                          className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700"
+                        >
+                          Delete
+                        </button>
+                        <div className="flex space-x-3">
+                          <button
+                            onClick={() => setShowEditEventModal(false)}
+                            className="px-4 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleEditEvent}
+                            className="px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700"
+                          >
+                            Update
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
-          
-          {renderContent()}
-        </main>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
 };
+
+// Code icon component for the calendar events
+const Code = ({ className }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <polyline points="16 18 22 12 16 6" />
+    <polyline points="8 6 2 12 8 18" />
+  </svg>
+);
 
 export default Dashboard;
 
@@ -662,15 +1328,15 @@ const MenuSection = ({ title, items, activeSection, setActiveSection }) => (
         <button
           key={item.id}
           onClick={() => setActiveSection(item.id)}
-          className={`w-full flex items-center px-3 py-3 rounded-xl text-left transition-all duration-200 ${
-            activeSection === item.id 
-              ? 'bg-orange-50 text-orange-700 border border-orange-100 shadow-sm' 
+          className={`w-full flex items-center px-3 py-2.5 rounded-xl text-left transition-all duration-200 ${
+            activeSection === item.id
+              ? 'bg-orange-50 text-orange-500 border-b-2 border-orange-500 shadow-sm'
               : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
           }`}
         >
-          <item.icon className={`w-5 h-5 mr-3 ${activeSection === item.id ? 'text-orange-600' : ''}`} />
-          <span className="font-medium">{item.name}</span>
-          {item.badge && <span className="ml-auto bg-orange-500 text-white text-xs px-2 py-1 rounded-full font-semibold">{item.badge}</span>}
+          <item.icon className={`w-5 h-5 mr-3 ${activeSection === item.id ? 'text-orange-500' : ''}`} />
+          <span className="font-medium text-sm">{item.name}</span>
+          {item.badge && <span className="ml-auto bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full font-semibold">{item.badge}</span>}
         </button>
       ))}
     </div>
@@ -691,9 +1357,9 @@ const DashboardHeader = ({
     <div className="flex items-center justify-between px-4 py-3">
       <div className="flex items-center space-x-6">
         <div className="relative">
-          <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
-          <input type="text" placeholder="Search campaigns, contacts, analytics..."
-            className="pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 w-96 bg-gray-50 focus:bg-white transition-all duration-200"
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+          <input type="text" placeholder="Search..."
+            className="pl-10 pr-4 py-2 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 w-60 bg-gray-50 focus:bg-white transition-all duration-200"
           />
         </div>
       </div>
@@ -702,27 +1368,6 @@ const DashboardHeader = ({
           <Bell className="w-4 h-4" />
           <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
         </button>
-        <button
-          onClick={() => setShowNewCampaignModal(true)}
-          className="flex items-center space-x-1 bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg transition-all duration-200 text-xs shadow-sm hover:shadow-md">
-          <Plus className="w-3 h-3" />
-          <span className="font-medium">New Campaign</span>
-        </button>
-        <button
-          onClick={() => {
-            setIsImporting(true);
-            if (fileInputRef.current) fileInputRef.current.click();
-          }}
-          className="flex items-center space-x-1 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-all duration-200 bg-white text-xs">
-          <Upload className="w-3 h-3 text-gray-600" />
-          <span className="text-gray-700 font-medium">Import Data</span>
-        </button>
-        <button
-          onClick={() => setShowAddContactModal(true)}
-          className="flex items-center space-x-1 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-all duration-200 bg-white text-xs">
-          <Users className="w-3 h-3 text-gray-600" />
-          <span className="text-gray-700 font-medium">Add Contact</span>
-        </button>
         <input
           type="file"
           ref={fileInputRef}
@@ -730,13 +1375,6 @@ const DashboardHeader = ({
           accept=".csv,.xlsx,.xls"
           onChange={handleFileImport}
         />
-        <div className="flex items-center space-x-3 pl-4 border-l border-gray-200">
-          <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80" alt="User" className="w-10 h-10 rounded-xl object-cover shadow-sm" />
-          <div>
-            <div className="text-sm font-semibold text-gray-900">Alex Johnson</div>
-            <div className="text-xs text-gray-500">alex@company.com</div>
-          </div>
-        </div>
       </div>
     </div>
   </header>
@@ -745,23 +1383,18 @@ const DashboardHeader = ({
 // Dashboard Home Content
 const DashboardHome = ({ stats, recentCampaigns, activeTimer, toggleTimer, timerTime }) => (
   <>
-    <div className="grid grid-cols-2 gap-3 mb-6 max-w-3xl mx-auto">
-      <StatCard icon={<Mail className="w-4 h-4" />} label="Total Campaigns" value={stats.total_campaigns} />
-      <StatCard icon={<Send className="w-4 h-4 text-blue-600" />} label="Emails Sent" value={stats.emails_sent} />
-      <StatCard icon={<Eye className="w-4 h-4 text-purple-600" />} label="Open Rate" value={`${stats.open_rate}%`} />
-      <StatCard icon={<MousePointer className="w-4 h-4 text-orange-600" />} label="Click Rate" value={`${stats.click_rate}%`} />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 w-full">
+      <StatCard icon={<Mail className="w-4 h-4 text-emerald-600" />} label="Total Campaigns" value={stats.total_campaigns} />
+      <StatCard icon={<Send className="w-4 h-4 text-teal-600" />} label="Emails Sent" value={stats.emails_sent} />
+      <StatCard icon={<Eye className="w-4 h-4 text-emerald-600" />} label="Open Rate" value={`${stats.open_rate}%`} />
+      <StatCard icon={<MousePointer className="w-4 h-4 text-teal-600" />} label="Click Rate" value={`${stats.click_rate}%`} />
     </div>
-
-    <SectionCard title="Recent Campaigns" data={recentCampaigns} />
-    
-   
-    
   </>
 );
 
 // Stat Card
 const StatCard = ({ icon, label, value }) => (
-  <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center justify-between">
+  <div className="bg-white rounded-xl p-4 shadow-md border border-gray-100 flex items-center justify-between hover:shadow-lg transition-shadow duration-200">
     <div className="flex items-center space-x-2">
       <div className="p-1.5 bg-gray-50 rounded-lg">{icon}</div>
       <div>
@@ -774,7 +1407,7 @@ const StatCard = ({ icon, label, value }) => (
 
 // Section Card
 const SectionCard = ({ title, data, icon }) => (
-  <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-6">
+  <div className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-6 w-full">
     <div className="flex items-center mb-4">
       {icon && <div className="mr-3">{icon}</div>}
       <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
@@ -784,7 +1417,7 @@ const SectionCard = ({ title, data, icon }) => (
         data.map((item, idx) => (
           <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
             <div>{item.name || item.title || `Item ${idx + 1}`}</div>
-            <MoreVertical className="w-4 h-4 text-gray-400" />
+            <MoreVertical className="w-4 h-4 text-emerald-500" />
           </div>
         ))
       ) : (
@@ -796,12 +1429,12 @@ const SectionCard = ({ title, data, icon }) => (
 
 // Analytics Dashboard Placeholder
 const AnalyticsDashboard = ({ stats }) => (
-  <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-6">
+  <div className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-6 w-full">
     <h2 className="text-2xl font-bold text-gray-900 mb-4">Campaign Analytics</h2>
-    <div className="grid grid-cols-3 gap-4">
-      <StatCard icon={<TrendingUp className="w-4 h-4 text-green-600" />} label="Open Rate" value={`${stats.open_rate || 0}%`} />
-      <StatCard icon={<TrendingUp className="w-4 h-4 text-blue-600" />} label="Click Rate" value={`${stats.click_rate || 0}%`} />
-      <StatCard icon={<TrendingUp className="w-4 h-4 text-red-600" />} label="Bounce Rate" value={`${stats.bounce_rate || 0}%`} />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
+      <StatCard icon={<TrendingUp className="w-4 h-4 text-emerald-600" />} label="Open Rate" value={`${stats.open_rate || 0}%`} />
+      <StatCard icon={<TrendingUp className="w-4 h-4 text-teal-600" />} label="Click Rate" value={`${stats.click_rate || 0}%`} />
+      <StatCard icon={<TrendingUp className="w-4 h-4 text-amber-500" />} label="Bounce Rate" value={`${stats.bounce_rate || 0}%`} />
     </div>
   </div>
 );
