@@ -44,6 +44,15 @@ class Event(EventBase):
     class Config:
         from_attributes = True
 
+
+class EventUpdate(BaseModel):
+    title: Optional[str] = None
+    date: Optional[datetime] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    type: Optional[str] = None
+    color: Optional[str] = None
+
     class Config:
         orm_mode = True
 

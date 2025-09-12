@@ -207,33 +207,7 @@ const Dashboard = ({ onLogout }) => {
     setShowAddEventModal(false);
   };
 
-  // Edit existing event
-  const handleEditEvent = () => {
-    if (!currentEvent) return;
-    if (!newEventTitle) {
-      showToast("Event title is required", "error");
-      return;
-    }
-
-    const formattedTime = `${newEventStartTime} — ${newEventEndTime}`;
-    
-    const updatedEvents = events.map(event => {
-      if (event.id === currentEvent.id) {
-        return {
-          ...event,
-          title: newEventTitle,
-          time: formattedTime,
-          type: newEventType,
-          color: newEventColor
-        };
-      }
-      return event;
-    });
-
-    setEvents(updatedEvents);
-    setShowEditEventModal(false);
-    showToast(`Event "${newEventTitle}" updated successfully!`, "success");
-  };
+  // Edit existing event (local-only fallback function replaced by async handler below)
 
   // Delete event
   const handleDeleteEvent = (eventId) => {
@@ -722,7 +696,53 @@ const handleAddContact = async () => {
     setIsLoading(false);
   }
 };
-  // This is a duplicate function that was removed
+  // Save edits to event
+  const handleEditEvent = async () => {
+    if (!currentEvent) return;
+    const updated = {
+      title: newEventTitle,
+      date: new Date(activeDate).toISOString(),
+      start_time: newEventStartTime,
+      end_time: newEventEndTime,
+      type: newEventType,
+      color: newEventColor
+    };
+    try {
+      const token = window.localStorage.getItem('token');
+      const res = await fetch(`/api/events/${currentEvent.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updated)
+      });
+      if (!res.ok) throw new Error('Failed to update');
+      setEvents(prev => prev.map(ev => ev.id === currentEvent.id ? {
+        ...ev,
+        title: newEventTitle,
+        time: `${newEventStartTime} — ${newEventEndTime}`,
+        type: newEventType,
+        color: newEventColor,
+        date: new Date(activeDate)
+      } : ev));
+      setShowEditEventModal(false);
+      showToast('Event updated', 'success');
+    } catch (e) {
+      // Local fallback
+      setEvents(prev => prev.map(ev => ev.id === currentEvent.id ? {
+        ...ev,
+        title: newEventTitle,
+        time: `${newEventStartTime} — ${newEventEndTime}`,
+        type: newEventType,
+        color: newEventColor,
+        date: new Date(activeDate)
+      } : ev));
+      setShowEditEventModal(false);
+      showToast('Updated locally (offline).', 'success');
+    }
+  }
 
   // Determine current page title
   const getPageTitle = () => {
@@ -999,46 +1019,46 @@ const handleAddContact = async () => {
             
             {/* Right Content (Calendar) */}
             {activeSection === 'dashboard' && (
-              <div className="w-2/5 flex-shrink-0">
+              <div className="w-1/3 flex-shrink-0 ml-4 md:ml-6 lg:ml-8">
                 
                 {/* Date Header */}
-                <div className="mb-6">
+                <div className="mb-4">
                   <div className="flex justify-between items-center">
                     <div>
-                      <h2 className="text-3xl font-bold">
+                      <h2 className="text-2xl font-bold">
                         {formatDate(selectedDate).month}, {formatDate(selectedDate).day} <span className="font-normal text-gray-500">{formatDate(selectedDate).dayName}</span>
                       </h2>
                     </div>
                     <div className="flex">
                       <button
                         onClick={goToPreviousMonth}
-                        className="p-2 text-gray-400 hover:text-gray-600"
+                        className="p-1.5 text-gray-400 hover:text-gray-600"
                       >
-                        <ChevronLeft className="w-5 h-5" />
+                        <ChevronLeft className="w-4 h-4" />
                       </button>
                       <button
                         onClick={goToNextMonth}
-                        className="p-2 text-gray-400 hover:text-gray-600"
+                        className="p-1.5 text-gray-400 hover:text-gray-600"
                       >
-                        <ChevronRight className="w-5 h-5" />
+                        <ChevronRight className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
                 </div>
                 
                 {/* Calendar */}
-                <div className="mb-8">
+                <div className="mb-6">
                   {/* Days of week */}
-                  <div className="grid grid-cols-7 mb-2">
+                  <div className="grid grid-cols-7 mb-1.5">
                     {weekDays.map((day, index) => (
-                      <div key={index} className="text-center text-sm text-gray-500 py-2">
+                      <div key={index} className="text-center text-xs text-gray-500 py-1.5">
                         {day}
                       </div>
                     ))}
                   </div>
                   
                   {/* Calendar grid */}
-                  <div className="grid grid-cols-7 gap-2">
+                  <div className="grid grid-cols-7 gap-1.5">
                     {(() => {
                       // Get first day of the month
                       const firstDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
@@ -1139,18 +1159,18 @@ const handleAddContact = async () => {
                           >
                             <div className="relative">
                               {day.highlight ? (
-                                <div className={`w-8 h-8 rounded-full ${day.highlightColor} text-white mx-auto flex items-center justify-center`}>
+                                <div className={`w-7 h-7 rounded-full ${day.highlightColor} text-white mx-auto flex items-center justify-center`}>
                                   {day.day}
                                 </div>
                               ) : (
-                                <div className="w-8 h-8 mx-auto flex items-center justify-center">
+                                <div className="w-7 h-7 mx-auto flex items-center justify-center">
                                   {day.day}
                                 </div>
                               )}
                               
                               {/* Event indicator dot */}
                               {day.currentMonth && dayHasEvents && (
-                                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
+                                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-emerald-500 rounded-full"></div>
                               )}
                             </div>
                           </div>
@@ -1161,7 +1181,7 @@ const handleAddContact = async () => {
                 </div>
                 
                 {/* Selected Date Information */}
-                <div className="mt-6 mb-4">
+                <div className="mt-4 mb-3">
                   <h3 className="text-lg font-semibold text-gray-700 mb-2">
                     Events for {formatDate(activeDate).month} {formatDate(activeDate).day}, {formatDate(activeDate).year}
                   </h3>
@@ -1197,21 +1217,21 @@ const handleAddContact = async () => {
                       >
                         <div className="flex">
                           <div className={`w-8 h-8 rounded-full ${event.color} mr-2 flex items-center justify-center`}>
-                            {event.type === 'meeting' ? (
+                            {String(event.type).toLowerCase() === 'meeting' ? (
                               <User className="w-4 h-4 text-white" />
-                            ) : event.type === 'work' ? (
+                            ) : String(event.type).toLowerCase() === 'work' ? (
                               <PlusCircle className="w-4 h-4 text-white" />
                             ) : (
                               <Code className="w-4 h-4 text-white" />
                             )}
                           </div>
                           <div>
-                            <h4 className="font-medium">{event.title}</h4>
+                            <h4 className="font-medium">{event.title} <span className="text-xs text-gray-500">• {event.type}</span></h4>
                             <div className="text-xs text-gray-500">{event.time}</div>
                           </div>
-                          <div className="ml-auto">
+                          <div className="ml-auto flex items-center gap-2">
                             <button
-                              className="text-gray-400 hover:text-gray-600"
+                              className="text-xs font-medium px-2 py-1 rounded-lg border border-red-200 text-red-700 bg-white hover:bg-red-50 hover:border-red-300 transition transform hover:scale-[1.03] active:scale-[.98]"
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 if (!confirm('Delete this event?')) return;
@@ -1222,7 +1242,23 @@ const handleAddContact = async () => {
                                 setEvents(prev => prev.filter(ev => ev.id !== event.id));
                               }}
                             >
-                              <MoreVertical className="w-4 h-4" />
+                              Delete
+                            </button>
+                            <button
+                              className="text-xs font-medium px-2 py-1 rounded-lg border hover:bg-gray-50 transition transform hover:scale-[1.03] active:scale-[.98]"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCurrentEvent(event);
+                                setNewEventTitle(event.title);
+                                const parts = (event.time || '').split(' — ');
+                                setNewEventStartTime(parts[0] || '09:00');
+                                setNewEventEndTime(parts[1] || '10:00');
+                                setNewEventType(event.type || 'Meeting');
+                                setNewEventColor(event.color || 'bg-emerald-500');
+                                setShowEditEventModal(true);
+                              }}
+                            >
+                              Edit
                             </button>
                           </div>
                         </div>
@@ -1433,12 +1469,43 @@ const handleAddContact = async () => {
                 .slice()
                 .sort((a,b) => new Date(a.date) - new Date(b.date))
                 .map(ev => (
-                  <div key={ev.id} className="py-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{ev.title}</div>
+                  <div key={ev.id} className="py-3 flex items-center gap-3">
+                    <span className={`inline-block w-3 h-3 rounded-full ${ev.color}`}></span>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-gray-900">{ev.title} <span className="text-xs text-gray-500">• {ev.type}</span></div>
                       <div className="text-xs text-gray-500">{new Date(ev.date).toDateString()} • {ev.time}</div>
                     </div>
-                    <span className={`inline-block w-3 h-3 rounded-full ${ev.color}`}></span>
+                    <div className="flex items-center gap-2 mr-3">
+                      <button
+                        className="text-xs font-semibold tracking-wide px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition transform hover:scale-[1.03] active:scale-[.98]"
+                        onClick={() => {
+                          setCurrentEvent(ev);
+                          setNewEventTitle(ev.title);
+                          const parts = (ev.time || '').split(' — ');
+                          setNewEventStartTime(parts[0] || '09:00');
+                          setNewEventEndTime(parts[1] || '10:00');
+                          setNewEventType(ev.type || 'Meeting');
+                          setNewEventColor(ev.color || 'bg-emerald-500');
+                          setShowAllEventsModal(false);
+                          setShowEditEventModal(true);
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="text-xs font-semibold tracking-wide px-2.5 py-1.5 rounded-lg border border-red-200 text-red-700 bg-white hover:bg-red-50 hover:border-red-300 transition transform hover:scale-[1.03] active:scale-[.98]"
+                        onClick={async () => {
+                          if (!confirm('Delete this event?')) return;
+                          try {
+                            const token = window.localStorage.getItem('token');
+                            await fetch(`/api/events/${ev.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                          } catch {}
+                          setEvents(prev => prev.filter(x => x.id !== ev.id));
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
               ))}
             </div>

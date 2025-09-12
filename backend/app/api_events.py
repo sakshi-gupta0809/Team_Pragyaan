@@ -54,4 +54,18 @@ def delete_event(event_id: int, authorization: Optional[str] = Header(None), db:
     db.commit()
     return {"status": "deleted"}
 
+@router.patch("/{event_id}", response_model=schemas.Event)
+def update_event(event_id: int, payload: schemas.EventUpdate, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    user_id = require_user(authorization)
+    ev = db.query(models.Event).filter(models.Event.id == event_id, models.Event.owner_id == user_id).first()
+    if not ev:
+        raise HTTPException(status_code=404, detail="Event not found")
+    for field in ["title", "date", "start_time", "end_time", "type", "color"]:
+        val = getattr(payload, field)
+        if val is not None:
+            setattr(ev, field, val)
+    db.commit()
+    db.refresh(ev)
+    return ev
+
 
