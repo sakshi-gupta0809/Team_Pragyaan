@@ -56,18 +56,6 @@ const Login = ({ onSwitch, onSuccess }) => {
     }
   }
 
-  const handleSocialLogin = async (provider) => {
-    try {
-      // Redirect to backend OAuth endpoints (to be implemented on backend)
-      // Example endpoints: /api/auth/oauth/google, /api/auth/oauth/facebook, etc.
-      // Open in the same tab to complete auth; backend should redirect back with token
-      const url = `/api/auth/oauth/${provider}`
-      window.location.href = url
-    } catch (err) {
-      setError('Unable to start social login. Please try again.')
-    }
-  }
-
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-blue-100 via-white to-purple-100 flex items-center justify-center p-4 sm:p-6">
       <div className="pointer-events-none absolute -top-24 -left-24 w-72 h-72 rounded-full bg-blue-500/10 blur-3xl animate-[floatSlow_6s_ease-in-out_infinite] z-0" aria-hidden="true"/>
@@ -85,19 +73,10 @@ const Login = ({ onSwitch, onSuccess }) => {
             </div>
           </div>
 
-          <div className="mb-6">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <SocialButton label="Google" provider="google" onClickProvider={handleSocialLogin} />
-              <SocialButton label="Facebook" provider="facebook" onClickProvider={handleSocialLogin} />
-              <SocialButton label="LinkedIn" provider="linkedin" onClickProvider={handleSocialLogin} />
-              <SocialButton label="Instagram" provider="instagram" onClickProvider={handleSocialLogin} />
-            </div>
-          </div>
+          {/* Social Logins removed per request */}
+          <div className="mb-2" />
 
-          <div className="relative text-center text-sm text-gray-500 mb-6">
-            <span className="bg-white px-3 relative z-10">or continue with email</span>
-            <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-px bg-gray-200"/>
-          </div>
+
 
           <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
             <div className={`relative ${touched.email && !isEmailValid ? 'animate-[glow_1.6s_ease-in-out_infinite]' : ''}`}>
@@ -111,12 +90,7 @@ const Login = ({ onSwitch, onSuccess }) => {
               <button type="button" onClick={()=>setShow(s=>!s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 {show ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}
               </button>
-              {touched.password && !isPasswordValid && (
-                <div className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                  <AlertCircle className="h-3.5 w-3.5"/>
-                  Password must be at least 6 characters
-                </div>
-              )}
+              {touched.password && !isPasswordValid && <div className="mt-1 text-xs text-red-600 flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5"/> At least 6 characters</div>}
             </div>
             <div className="flex items-center justify-between text-sm">
               <label className="inline-flex items-center gap-2">
@@ -128,10 +102,40 @@ const Login = ({ onSwitch, onSuccess }) => {
 
             <AnimatePresence>
               {error && (
-                <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="text-red-600 text-sm flex items-center gap-2"><AlertCircle className="h-4 w-4"/>{error}</motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm px-3 py-2"
+                  role="alert"
+                >
+                  <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0"/>
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between">
+                      <p className="font-medium">We couldn’t sign you in.</p>
+                      <button type="button" onClick={()=>setError('')} className="text-red-500 hover:text-red-700 rounded p-1 leading-none">×</button>
+                    </div>
+                    <p className="text-[12px] opacity-90">{error}</p>
+                    <ul className="mt-1 text-[11px] text-red-600/90 list-disc pl-5 space-y-[2px]">
+                      <li>Check your email format</li>
+                      <li>Password must be at least 6 characters</li>
+                    </ul>
+                  </div>
+                </motion.div>
               )}
               {success && (
-                <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="text-emerald-600 text-sm flex items-center gap-2"><CheckCircle2 className="h-4 w-4"/>{success}</motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm px-3 py-2"
+                >
+                  <CheckCircle2 className="h-4 w-4 mt-0.5"/>
+                  <div>
+                    <p className="font-medium">Success</p>
+                    <p className="text-[12px] opacity-90">{success}</p>
+                  </div>
+                </motion.div>
               )}
             </AnimatePresence>
 
@@ -162,15 +166,5 @@ const Login = ({ onSwitch, onSuccess }) => {
 }
 
 export default Login
-
-const SocialButton = ({ label, provider, onClickProvider }) => (
-  <button
-    type="button"
-    onClick={() => onClickProvider(provider)}
-    className="border rounded-xl py-3 hover:shadow transition bg-white/70 backdrop-blur text-sm"
-  >
-    {label}
-  </button>
-)
 
 

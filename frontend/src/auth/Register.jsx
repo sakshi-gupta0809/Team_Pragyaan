@@ -84,7 +84,7 @@ const Register = ({ onSwitch, onSuccess }) => {
       <div className="pointer-events-none absolute -bottom-24 -right-24 w-72 h-72 rounded-full bg-teal-500/10 blur-3xl z-0" aria-hidden="true" style={{ transform:`translate(${-parallax.x}px, ${-parallax.y}px)` }}/>
       <div className="w-full max-w-xl">
         <motion.div initial={{ opacity: 0, scale: 0.98, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }} className="relative z-10 bg-white/80 backdrop-blur rounded-3xl shadow-xl p-6 sm:p-8 border border-white/60">
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 mb-6">
             <motion.div initial={{ rotate: -8 }} animate={{ rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 12 }} className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-emerald-600 shadow-lg shadow-emerald-200 grid place-items-center">
               <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9" opacity=".15"/><path d="M8 13l2.5 2.5L16 10"/></svg>
             </motion.div>
@@ -93,6 +93,8 @@ const Register = ({ onSwitch, onSuccess }) => {
               <h2 className="text-2xl font-semibold">Create an Account</h2>
             </div>
           </div>
+          {/* Social Logins removed per request */}
+          <div className="mb-2" />
 
           <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
             <div className={`relative ${touched.name && !isNameValid ? 'animate-[glow_1.6s_ease-in-out_infinite]' : ''}`}>
@@ -124,10 +126,32 @@ const Register = ({ onSwitch, onSuccess }) => {
 
             <AnimatePresence>
               {error && (
-                <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="text-red-600 text-sm flex items-center gap-2"><AlertCircle className="h-4 w-4"/>{error}</motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm px-3 py-2"
+                >
+                  <AlertCircle className="h-4 w-4 mt-0.5"/>
+                  <div>
+                    <p className="font-medium">We couldn’t create your account.</p>
+                    <p className="text-[12px] opacity-90">{error}</p>
+                  </div>
+                </motion.div>
               )}
               {success && (
-                <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="text-emerald-600 text-sm flex items-center gap-2"><CheckCircle2 className="h-4 w-4"/>{success}</motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm px-3 py-2"
+                >
+                  <CheckCircle2 className="h-4 w-4 mt-0.5"/>
+                  <div>
+                    <p className="font-medium">Account created</p>
+                    <p className="text-[12px] opacity-90">{success}</p>
+                  </div>
+                </motion.div>
               )}
             </AnimatePresence>
 
