@@ -16,11 +16,11 @@ from .email_generator import EmailGenerator
 from .template_generation import TemplateGenerator
 from pathlib import Path
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Path, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, Path, File, UploadFile, Form, Body
 from fastapi.responses import Response, JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from .models import Campaign, Contact
+from .models import Campaign, Contact, EmailLog, Schedule, EmailTemplate
 from .schemas import CampaignCreate
 from .contact_categorization import categorize_designation
 
@@ -853,7 +853,36 @@ async def approve_categories(
                 raise HTTPException(status_code=500, detail=error_message)
         
         logger.info(f"Generated {len(templates)} templates for campaign {campaign_id}")
-        
+
+        # Persist generated templates to DB (upsert by campaign + category)
+        try:
+            saved_count = 0
+            for t in templates:
+                category_id = t.get("categoryId") or "other"
+                subject = t.get("subject") or ""
+                body = t.get("body") or ""
+
+                existing_tpl = db.query(EmailTemplate).filter(
+                    EmailTemplate.campaign_id == campaign_id,
+                    EmailTemplate.category == category_id
+                ).first()
+                if existing_tpl:
+                    existing_tpl.subject = subject
+                    existing_tpl.body = body
+                else:
+                    db.add(EmailTemplate(
+                        subject=subject,
+                        body=body,
+                        category=category_id,
+                        campaign_id=campaign_id
+                    ))
+                saved_count += 1
+            db.commit()
+            logger.info(f"Saved/updated {saved_count} templates to DB for campaign {campaign_id}")
+        except Exception as save_err:
+            db.rollback()
+            logger.error(f"Failed saving generated templates to DB for campaign {campaign_id}: {save_err}")
+
         return JSONResponse({
             "success": True,
             "campaign_id": campaign_id,
@@ -1105,19 +1134,47 @@ async def save_templates(
     db: Session = Depends(get_db)
 ):
     """
-    Save email templates for a campaign.
-    This endpoint is called from the Neutrino workflow after templates have been edited.
+    Save email templates for a campaign to the database.
+    Accepts payload: { templates: [{ categoryId, subject, body }, ...] }
     """
     try:
-        # In a real implementation, this would save templates to the database
-        # For now, just return success with the provided templates
-        
+        if not templates or 'templates' not in templates:
+            raise HTTPException(status_code=400, detail="Missing templates in payload")
+
+        saved = []
+        for t in templates['templates']:
+            category_id = t.get('categoryId') or t.get('category') or 'other'
+            subject = t.get('subject') or ''
+            body = t.get('body') or ''
+
+            # Upsert by campaign_id + category
+            existing = db.query(EmailTemplate).filter(
+                EmailTemplate.campaign_id == campaign_id,
+                EmailTemplate.category == category_id
+            ).first()
+            if existing:
+                existing.subject = subject
+                existing.body = body
+            else:
+                db.add(EmailTemplate(
+                    subject=subject,
+                    body=body,
+                    category=category_id,
+                    campaign_id=campaign_id
+                ))
+            saved.append({"categoryId": category_id, "subject": subject, "body": body})
+
+        db.commit()
+
         return JSONResponse({
             "success": True,
             "campaign_id": campaign_id,
-            "templates": templates.get('templates', [])
+            "templates": saved
         })
+    except HTTPException:
+        raise
     except Exception as e:
+        db.rollback()
         logger.error(f"Error saving templates: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error saving templates: {str(e)}")
 
@@ -1126,48 +1183,145 @@ async def save_templates(
 @router.post("/campaigns/{campaign_id}/schedule/approve")
 async def approve_schedule(
     campaign_id: int = Path(..., gt=0),
-    data: Dict[str, Any] = None,
+    data: Dict[str, Any] = Body(None),
     db: Session = Depends(get_db)
 ):
     """
     Approve the schedule for a campaign.
-    This endpoint is called from the Neutrino workflow after scheduling has been set up.
+    This creates EmailLog and Schedule rows so emails can actually send.
     """
     try:
-        # Mock email schedules for demo purposes
-        mock_emails = [
-            {
-                "id": "mock-1",
-                "recipient": "john@example.com",
-                "subject": "Partnership opportunity with our company",
-                "body": "Dear John,\n\nI hope this email finds you well...",
-                "scheduledDate": datetime.now().isoformat(),
+        # Validate campaign exists
+        campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+        if not campaign:
+            raise HTTPException(status_code=404, detail=f"Campaign with ID {campaign_id} not found")
+
+        # Load contacts from file or DB
+        contacts_file = os.path.join(DATA_DIR, f"campaign_{campaign_id}_contacts.json")
+        contacts: List[Dict[str, Any]] = []
+        if os.path.exists(contacts_file):
+            with open(contacts_file, 'r') as f:
+                payload = json.load(f)
+                contacts = payload.get("contacts", [])
+        else:
+            db_contacts = db.query(Contact).filter(Contact.campaign_id == campaign_id).all()
+            for c in db_contacts:
+                contacts.append({
+                    "name": c.name,
+                    "email": c.email,
+                    "job_title": c.designation,
+                    "company": c.company,
+                    "category": c.category or "other"
+                })
+
+        # Decide start date
+        start_iso = None
+        if data and isinstance(data, dict):
+            start_iso = data.get("startDate") or data.get("start_date")
+        try:
+            start_dt = datetime.fromisoformat(start_iso) if start_iso else datetime.now()
+        except Exception:
+            start_dt = datetime.now()
+
+        # Load saved templates for this campaign
+        templates = db.query(EmailTemplate).filter(EmailTemplate.campaign_id == campaign_id).all()
+        templates_by_category = { (tpl.category or 'other'): tpl for tpl in templates }
+
+        # Create EmailLogs and Schedules (skip duplicates)
+        created_emails: List[Dict[str, Any]] = []
+        for idx, contact in enumerate(contacts):
+            email_addr = contact.get("email")
+            if not email_addr or not isinstance(email_addr, str) or "@" not in email_addr:
+                continue
+
+            # Skip if a pending schedule already exists for this recipient in this campaign
+            existing = (
+                db.query(Schedule)
+                .join(EmailLog, Schedule.email_log_id == EmailLog.id)
+                .filter(
+                    EmailLog.campaign_id == campaign_id,
+                    EmailLog.recipient_email == email_addr,
+                    EmailLog.status == "pending",
+                    Schedule.is_sent == False
+                )
+                .first()
+            )
+            if existing:
+                continue
+
+            # Choose template by contact category or fallback
+            cat = (contact.get("category") or "other").lower()
+            tpl = templates_by_category.get(cat) or next(iter(templates_by_category.values()), None)
+
+            if tpl:
+                subject = tpl.subject
+                body = tpl.body
+            else:
+                subject = f"{campaign.name} - Introduction"
+                body = (
+                    f"Hi {{name}},\n\n"
+                    f"We'd love to connect with {{company}}.\n\nBest regards,"
+                )
+
+            # Personalize subject and body
+            name = contact.get('name') or ''
+            company = contact.get('company') or ''
+            subject = (subject
+                .replace('{{name}}', name)
+                .replace('{{company}}', company)
+                .replace('{name}', name)
+                .replace('{company}', company)
+            )
+            body = (body
+                .replace('{{name}}', name)
+                .replace('{{company}}', company)
+                .replace('{name}', name)
+                .replace('{company}', company)
+            )
+
+            # Find DB contact row for contact_id mapping
+            db_contact = db.query(Contact).filter(Contact.email == email_addr, Contact.campaign_id == campaign_id).first()
+
+            email_log = EmailLog(
+                recipient_email=email_addr,
+                recipient_name=name,
+                recipient_company=company,
+                recipient_category=cat,
+                subject=subject,
+                body=body,
+                status="pending",
+                campaign_id=campaign_id,
+                contact_id=db_contact.id if db_contact else None,
+            )
+            db.add(email_log)
+            db.flush()
+
+            schedule = Schedule(
+                send_time=start_dt,
+                is_holiday=False,
+                is_sent=False,
+                email_log_id=email_log.id,
+            )
+            db.add(schedule)
+
+            created_emails.append({
+                "id": email_log.id,
+                "recipient": email_addr,
+                "subject": subject,
+                "body": body,
+                "scheduledDate": start_dt.isoformat(),
                 "status": "scheduled"
-            },
-            {
-                "id": "mock-2",
-                "recipient": "jane@example.com",
-                "subject": "Improving operational efficiency",
-                "body": "Hello Jane,\n\nI wanted to connect regarding...",
-                "scheduledDate": datetime.now().isoformat(),
-                "status": "scheduled"
-            },
-            {
-                "id": "mock-3",
-                "recipient": "alex@example.com",
-                "subject": "New technical solutions for your company",
-                "body": "Hi Alex,\n\nI'm reaching out to discuss...",
-                "scheduledDate": datetime.now().isoformat(),
-                "status": "scheduled"
-            }
-        ]
-        
+            })
+
+        db.commit()
+
         return JSONResponse({
             "success": True,
             "campaign_id": campaign_id,
-            "emails": mock_emails
+            "emails": created_emails
         })
     except Exception as e:
+        db.rollback()
         logger.error(f"Error approving schedule: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error approving schedule: {str(e)}")
 

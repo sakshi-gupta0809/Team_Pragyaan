@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronDown, Edit2, MoreHorizontal, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Search, ChevronDown, Edit2, MoreHorizontal, ChevronLeft, ChevronRight, Sparkles, Trash2 } from 'lucide-react';
 import NeutrinoCampaignWorkflow from './neutrino/NeutrinoCampaignWorkflow';
+import CampaignDetails from './CampaignDetails';
 
 const CampaignsInterface = () => {
   const [showNeutrinoWorkflow, setShowNeutrinoWorkflow] = useState(false);
@@ -11,6 +12,7 @@ const CampaignsInterface = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCampaigns, setTotalCampaigns] = useState(0);
   const [selectedCampaigns, setSelectedCampaigns] = useState([]);
+  const [viewCampaignId, setViewCampaignId] = useState(null);
 
   const statusOptions = ['All statuses', 'Draft', 'Sent', 'Scheduled', 'Paused'];
 
@@ -89,6 +91,27 @@ const CampaignsInterface = () => {
   };
 
 
+  const handleDeleteCampaign = async (campaignId) => {
+    try {
+      const numericId = typeof campaignId === 'string' && campaignId.startsWith('#') ? parseInt(campaignId.replace('#','')) : campaignId;
+      if (!window.confirm('Are you sure you want to delete this campaign? This cannot be undone.')) return;
+      const res = await fetch(`/api/campaigns/${numericId}`, { method: 'DELETE', headers: { 'Accept': 'application/json' } });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || 'Failed to delete campaign');
+      }
+      setCampaigns(prev => prev.filter(c => {
+        const idVal = typeof c.id === 'string' && c.id.startsWith('#') ? parseInt(c.id.replace('#','')) : c.id;
+        return idVal !== numericId;
+      }));
+      setSelectedCampaigns(prev => prev.filter(id => id !== numericId && id !== `#${numericId}`));
+    } catch (e) {
+      console.error('Delete failed:', e);
+      alert('Failed to delete campaign.');
+    }
+  };
+
+
   const handlePagination = (page) => {
     setCurrentPage(page);
   };
@@ -97,6 +120,8 @@ const CampaignsInterface = () => {
     <div className="min-h-screen bg-dashboard-blue-light/30 w-full overflow-x-hidden">
       {showNeutrinoWorkflow ? (
         <NeutrinoCampaignWorkflow onClose={() => setShowNeutrinoWorkflow(false)} />
+      ) : viewCampaignId ? (
+        <CampaignDetails campaignId={viewCampaignId} onBack={() => setViewCampaignId(null)} />
       ) : (
         <>
           {/* Header */}
@@ -234,7 +259,16 @@ const CampaignsInterface = () => {
                     <div className="flex items-center space-x-3 w-full">
                       <div className="w-2 h-2 bg-brand-yellow rounded-full flex-shrink-0"></div>
                       <div className="min-w-0 w-full">
-                        <div className="font-medium text-gray-900 truncate w-full">{campaign.name}</div>
+                        <button
+                          className="font-medium text-gray-900 truncate w-full text-left hover:underline"
+                          onClick={() => {
+                            const numericId = typeof campaign.id === 'string' && campaign.id.startsWith('#') ? parseInt(campaign.id.replace('#','')) : campaign.id;
+                            setViewCampaignId(numericId);
+                            window.localStorage.setItem('currentCampaignId', numericId);
+                          }}
+                        >
+                          {campaign.name}
+                        </button>
                         <div className="text-sm text-gray-500 flex items-center space-x-2 flex-wrap gap-y-1 w-full">
                           <span className={`px-2 py-1 ${
                             campaign.status === 'sent' ? 'bg-brand-yellow text-brand-dark' :
@@ -262,6 +296,13 @@ const CampaignsInterface = () => {
                       onClick={() => handleEditCampaign(campaign.id)}
                     >
                       <Edit2 className="w-4 h-4 text-brand-dark" />
+                    </button>
+                    <button
+                      className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                      onClick={() => handleDeleteCampaign(campaign.id)}
+                      title="Delete campaign"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-600" />
                     </button>
                     <button
                       className="p-2 hover:bg-gray-100 rounded-lg transition-colors"

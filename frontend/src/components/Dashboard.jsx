@@ -58,6 +58,7 @@ const Dashboard = ({ onLogout }) => {
   const [schedules, setSchedules] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [emailLogs, setEmailLogs] = useState([]);
+  const [liveStats, setLiveStats] = useState({ loading: false, data: null, error: null });
   
   // Enhanced error handling
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
@@ -247,6 +248,25 @@ const Dashboard = ({ onLogout }) => {
       }
     ]);
   }, []);
+
+  // Fetch live campaign stats for the last used campaign
+  const fetchLiveCampaignStats = async () => {
+    try {
+      const id = window.localStorage.getItem('currentCampaignId');
+      if (!id) return;
+      setLiveStats(s => ({ ...s, loading: true, error: null }));
+      const res = await fetch(`http://localhost:8000/campaigns/${id}/stats`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to load campaign stats');
+      setLiveStats({ loading: false, data, error: null });
+    } catch (e) {
+      setLiveStats({ loading: false, data: null, error: e.message });
+    }
+  };
+
+  // Removed auto-fetch to declutter UI per request
 
   // Active bookings data
   const activeBookings = [
@@ -907,6 +927,7 @@ const handleAddContact = async () => {
             {/* Right Content (Calendar) */}
             {activeSection === 'dashboard' && (
               <div className="w-2/5 flex-shrink-0">
+                
                 {/* Date Header */}
                 <div className="mb-6">
                   <div className="flex justify-between items-center">
@@ -1406,11 +1427,19 @@ const DashboardHeader = ({
 // Dashboard Home Content
 const DashboardHome = ({ stats, recentCampaigns, activeTimer, toggleTimer, timerTime }) => (
   <>
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 w-full">
-      <StatCard icon={<Mail className="w-4 h-4 text-emerald-600" />} label="Total Campaigns" value={stats.total_campaigns} />
-      <StatCard icon={<Send className="w-4 h-4 text-teal-600" />} label="Emails Sent" value={stats.emails_sent} />
-      <StatCard icon={<Eye className="w-4 h-4 text-emerald-600" />} label="Open Rate" value={`${stats.open_rate}%`} />
-      <StatCard icon={<MousePointer className="w-4 h-4 text-teal-600" />} label="Click Rate" value={`${stats.click_rate}%`} />
+    <div className="grid grid-cols-2 gap-x-3 gap-y-0 mb-1 w-full items-stretch">
+      <div className="h-28">
+        <StatCard icon={<Mail className="w-4 h-4 text-emerald-600" />} label="Total Campaigns" value={stats.total_campaigns} />
+      </div>
+      <div className="h-28">
+        <StatCard icon={<Send className="w-4 h-4 text-teal-600" />} label="Emails Sent" value={stats.emails_sent} />
+      </div>
+      <div className="h-28">
+        <StatCard icon={<Eye className="w-4 h-4 text-emerald-600" />} label="Open Rate" value={`${stats.open_rate}%`} />
+      </div>
+      <div className="h-28">
+        <StatCard icon={<MousePointer className="w-4 h-4 text-teal-600" />} label="Click Rate" value={`${stats.click_rate}%`} />
+      </div>
     </div>
   </>
 );
