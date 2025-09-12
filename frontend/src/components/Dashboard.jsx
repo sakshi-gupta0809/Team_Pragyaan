@@ -351,7 +351,7 @@ const Dashboard = ({ onLogout }) => {
             : error.message;
           
           console.error(`Error fetching ${name}:`, errorMessage);
-          showToast(`${name} data unavailable. Using demo data.`, "error");
+          // Quiet fallback: log but do not show noisy toast on initial load
           
           // Provide appropriate fallback data based on the endpoint type
           if (name === "campaigns") {

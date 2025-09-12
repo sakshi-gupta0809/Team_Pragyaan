@@ -5,13 +5,28 @@ import ModernDashboard from './components/ModernDashboard'
 import Login from './auth/Login'
 import Register from './auth/Register'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useEffect } from 'react'
 
 function App() {
   const [useModernUI, setUseModernUI] = useState(true)
   const requireAuth = import.meta.env.VITE_REQUIRE_AUTH === 'true'
-  const [isAuthenticated, setIsAuthenticated] = useState(() => (requireAuth ? false : !!localStorage.getItem('token')))
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('token'))
   const [mode, setMode] = useState('login')
 
+  // Capture OAuth token from URL hash: #oauth=success&token=...
+  useEffect(() => {
+    if (window && window.location && window.location.hash) {
+      const hash = window.location.hash.replace(/^#/, '')
+      const params = new URLSearchParams(hash)
+      const token = params.get('token')
+      if (token) {
+        localStorage.setItem('token', token)
+        setIsAuthenticated(true)
+        // clean hash
+        window.history.replaceState({}, document.title, window.location.pathname)
+      }
+    }
+  }, [])
   if (!isAuthenticated) {
     return (
       <AnimatePresence mode="wait" initial={false}>
