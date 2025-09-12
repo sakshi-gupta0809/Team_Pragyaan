@@ -53,51 +53,59 @@ const CampaignCreationForm = ({ onSubmit, isLoading }) => {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-md p-6">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Create New Campaign</h2>
+    <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">Create New Campaign</h2>
+          <span className="inline-flex items-center text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Step 1 of 3</span>
+        </div>
+        <p className="text-sm text-gray-500 mt-1">Name your campaign, set a start date, and upload your leads file. You can fine‑tune templates and scheduling next.</p>
+      </div>
       
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-r-lg">
-          <p>{error}</p>
+        <div className="mb-5 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl">
+          <p className="text-sm">{error}</p>
         </div>
       )}
       
       <form onSubmit={handleSubmit}>
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Campaign Name */}
-          <div>
-            <label htmlFor="campaignName" className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="col-span-1">
+            <label htmlFor="campaignName" className="block text-sm font-medium text-gray-800 mb-1">
               Campaign Name
             </label>
             <input
               type="text"
               id="campaignName"
-              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-primary focus:border-primary"
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
               placeholder="Q4 Product Launch"
               value={campaignName}
               onChange={(e) => setCampaignName(e.target.value)}
               required
             />
+            <p className="mt-1 text-xs text-gray-500">Keep it short and descriptive.</p>
           </div>
           
           {/* Campaign Description */}
-          <div>
-            <label htmlFor="campaignDescription" className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="col-span-1">
+            <label htmlFor="campaignDescription" className="block text-sm font-medium text-gray-800 mb-1">
               Campaign Description
             </label>
             <textarea
               id="campaignDescription"
               rows="4"
-              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-primary focus:border-primary"
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
               placeholder="Describe the purpose of this campaign..."
               value={campaignDescription}
               onChange={(e) => setCampaignDescription(e.target.value)}
             />
+            <p className="mt-1 text-xs text-gray-500">Optional, but helpful for your team.</p>
           </div>
           
           {/* Campaign Start Date */}
-          <div>
-            <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="col-span-1">
+            <label htmlFor="startDate" className="block text-sm font-medium text-gray-800 mb-1">
               Campaign Start Date
             </label>
             <div className="relative">
@@ -107,53 +115,58 @@ const CampaignCreationForm = ({ onSubmit, isLoading }) => {
               <input
                 type="date"
                 id="startDate"
-                className="w-full pl-10 px-4 py-2 border border-gray-300 rounded-xl focus:ring-primary focus:border-primary"
+                className="w-full pl-10 px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
                 value={campaignStartDate}
                 onChange={(e) => setCampaignStartDate(e.target.value)}
                 required
               />
             </div>
+            <p className="mt-1 text-xs text-gray-500">Choose when to kick off sending.</p>
           </div>
           
           {/* Upload Leads File */}
-          <div>
-            <label htmlFor="leadsFile" className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="col-span-1 md:col-span-2">
+            <label htmlFor="leadsFile" className="block text-sm font-medium text-gray-800 mb-1">
               Upload Leads File (CSV or Excel)
             </label>
-            <div className="mt-1 flex items-center">
-              <label className="w-full flex justify-center px-6 py-3 border-2 border-gray-300 border-dashed rounded-xl cursor-pointer hover:bg-gray-50">
-                <div className="space-y-1 text-center">
-                  <FileUp className="mx-auto h-12 w-12 text-dark" />
-                  <div className="flex text-sm text-gray-600">
-                    <label htmlFor="file-upload" className="relative cursor-pointer rounded-md font-medium text-dark hover:text-black">
-                      <span>Upload a file</span>
-                      <input 
-                        id="file-upload" 
-                        name="file-upload" 
-                        type="file" 
-                        className="sr-only"
-                        accept=".csv,.xlsx,.xls"
-                        onChange={handleFileChange}
-                      />
-                    </label>
-                    <p className="pl-1">or drag and drop</p>
-                  </div>
-                  <p className="text-xs text-gray-500">CSV or Excel up to 10MB</p>
+            <div className="mt-1">
+              <label className="group w-full flex flex-col items-center justify-center px-6 py-6 border-2 border-dashed rounded-2xl cursor-pointer bg-gray-50 hover:bg-gray-100 border-gray-300 transition">
+                <FileUp className="mx-auto h-10 w-10 text-gray-500 group-hover:text-gray-700" />
+                <div className="mt-2 text-sm text-gray-600">
+                  <span className="font-medium text-gray-800">Click to upload</span> or drag and drop
                 </div>
+                <p className="text-xs text-gray-500">CSV or Excel up to 10MB</p>
+                <input
+                  id="file-upload"
+                  name="file-upload"
+                  type="file"
+                  className="sr-only"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleFileChange}
+                />
               </label>
+              {fileName && (
+                <div className="mt-3 flex items-center justify-between bg-white border border-gray-200 rounded-xl p-3">
+                  <div className="text-sm text-gray-700 truncate">
+                    <span className="font-medium">Selected:</span> {fileName}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setLeadsFile(null); setFileName(''); }}
+                    className="text-xs px-2 py-1 rounded-lg border hover:bg-gray-50"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
             </div>
-            {fileName && (
-              <div className="mt-2 text-sm text-gray-500">
-                <p className="font-medium text-dark">Selected file: {fileName}</p>
-              </div>
-            )}
           </div>
           
           {/* Submit Button */}
-          <div className="flex justify-end">
+          <div className="md:col-span-2 flex justify-end">
             <button
               type="submit"
-              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-xl shadow-sm text-dark bg-primary hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-xl shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition"
               disabled={isLoading}
             >
               {isLoading ? (

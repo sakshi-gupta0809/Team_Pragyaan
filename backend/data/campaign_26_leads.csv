@@ -1,0 +1,4 @@
+recipient,subject,body,scheduled_date,status
+john@example.com,"Partnership opportunity","Dear John...","2023-09-15T10:00:00","scheduled"
+jane@example.com,"Improving efficiency","Hello Jane...","2023-09-16T11:00:00","scheduled"
+alex@example.com,"Technical solutions","Hi Alex...","2023-09-17T14:00:00","scheduled"
