@@ -42,8 +42,7 @@ DEFAULT_COMPANY_SUMMARY = RESOURCES_DIR / "neutrino_summary.txt"
 # Default email prompt template
 DEFAULT_EMAIL_PROMPT = PROMPTS_DIR / "email_prompt.md"
 
-# Default email format template
-DEFAULT_EMAIL_FORMAT = PROMPTS_DIR / "email_format.md"
+# Default email format template removed – only email_prompt.md will be used
 
 class TemplateGenerator:
     """
@@ -76,8 +75,7 @@ class TemplateGenerator:
         # Load email prompt template
         self.email_prompt_template = self._load_email_prompt_template()
         
-        # Load email format template
-        self.email_format_template = self._load_email_format_template()
+        # Do not load email format template – generation will rely solely on email_prompt.md
     
     def _load_company_summary(self) -> str:
         """Load the company summary from the resources directory."""
@@ -109,32 +107,7 @@ class TemplateGenerator:
             - Output JSON with subject, intro, body, cta.
             """
     
-    def _load_email_format_template(self) -> str:
-        """Load the email format template from the prompts directory."""
-        try:
-            with open(DEFAULT_EMAIL_FORMAT, 'r') as f:
-                return f.read().strip()
-        except Exception as e:
-            logger.error(f"Failed to load email format template: {str(e)}")
-            return """
-            Subject: Neutrino Healthcare IT Solutions for {{first_name}} at {{company_name}}
-
-            Hi {{first_name}},
-
-            I hope this email finds you well. I came across {{company_name}} while researching innovative companies in the healthcare space and was impressed by your focus on improving patient outcomes.
-
-            As a {{designation}} at {{company_name}}, I imagine you're constantly looking for ways to optimize your healthcare IT operations while maintaining compliance and enhancing patient care.
-
-            At Neutrino Tech Systems, we specialize in healthcare IT solutions that help organizations like yours streamline operations, improve compliance, and enhance patient engagement. Our specialty pharmacy automation solutions have helped clients reduce turnaround times by up to 40% while maintaining HIPAA compliance.
-
-            Would you be open to a 15-minute call this week to discuss how Neutrino might be able to support {{company_name}}'s healthcare IT initiatives?
-
-            Looking forward to connecting.
-
-            Best regards,
-            [Your Name]
-            Neutrino Tech Systems
-            """
+    # Removed email format template loader
     
     def _load_sample_email(self, scenario: str, step: int) -> str:
         """
@@ -232,8 +205,8 @@ class TemplateGenerator:
         sample_email = ""
         
         if not self.use_llm:
-            # Use fallback template generation
-            return self._generate_fallback_template(category, scenario, step)
+            # No fallback – enforce LLM-only generation
+            raise RuntimeError("LLM unavailable: template generation requires OPENAI_API_KEY and openai package.")
             
         # Add randomization based on current time and category
         seed = f"{category}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')}"
@@ -345,13 +318,7 @@ class TemplateGenerator:
                 prompt += "4. Make this email distinctly different from emails to other categories\n"
                 prompt += "5. Don't mention specific contact names, but do reference their roles and industries\n"
             
-            # Add strict instructions for email format and uniqueness
-            # Add additional requirements to follow specific email format from the template file
-            prompt += "\n# ADDITIONAL FORMAT REQUIREMENTS - STRICTLY FOLLOW\n"
-            prompt += "Your response MUST follow this exact structure but with unique content:\n"
-            prompt += self.email_format_template
-            prompt += "7. Create a distinctly different tone and approach for this specific audience\n"
-            prompt += "8. Your entire email should be ORIGINAL but MUST follow the format above with placeholders\n"
+            # Do not append external format template – rely solely on email_prompt.md
             
             # Add multiple sources of randomization
             current_time = datetime.datetime.now()
@@ -489,89 +456,9 @@ class TemplateGenerator:
             
         except Exception as e:
             logger.error(f"Error generating template for category {category}: {str(e)}")
-            return self._generate_fallback_template(category, scenario, step)
-    
-    def _generate_fallback_template(
-        self, 
-        category: str, 
-        scenario: str, 
-        step: int = 1
-    ) -> Dict[str, str]:
-        """
-        Generate a fallback template when LLM is not available.
-        
-        Args:
-            category: Contact category
-            scenario: Campaign scenario
-            step: Email step
-            
-        Returns:
-            Dictionary with subject and body
-        """
-        # Simple template based on category and scenario
-        if step == 1:
-            # Initial email
-            if scenario == "cold_outreach":
-                subject = f"Neutrino's Healthcare IT Solutions for {{{{first_name}}}}'s team at {{{{company_name}}}}"
-                body = f"""Hello {{{{first_name}}}},
-
-I noticed that {{{{company_name}}}} is in the {category.lower()} space, and I wanted to reach out about how Neutrino Tech Systems has been helping similar organizations.
-
-{self.company_summary[:200]}...
-
-Would you be open to a quick call this week to discuss how we might be able to help {{{{company_name}}}} with its {category.lower()} needs?
-
-Best regards,
-{{{{sender_name}}}}
-Neutrino Tech Systems"""
-            
-            elif scenario == "conference":
-                subject = f"Great connecting at {{{{event_name}}}} | Neutrino and {{{{company_name}}}}"
-                body = f"""Hello {{{{first_name}}}},
-
-It was great meeting you at {{{{event_name}}}}. I enjoyed our conversation about the challenges in the {category.lower()} space.
-
-At Neutrino, we've been working with several organizations on similar initiatives, and I thought you might be interested in learning more about our approach.
-
-Would you be available for a follow-up discussion next week?
-
-Best regards,
-{{{{sender_name}}}}
-Neutrino Tech Systems"""
-            
-            else:
-                subject = f"Neutrino Tech Systems: {scenario.capitalize()} for {{{{company_name}}}}"
-                body = f"""Hello {{{{first_name}}}},
-
-I'm reaching out regarding {{{{company_name}}}}'s {category.lower()} operations and how Neutrino Tech Systems might be able to help.
-
-{self.company_summary[:200]}...
-
-Would you be interested in learning more?
-
-Best regards,
-{{{{sender_name}}}}
-Neutrino Tech Systems"""
-        
-        else:
-            # Follow-up email
-            subject = f"Following up: Neutrino and {{{{company_name}}}}"
-            body = f"""Hello {{{{first_name}}}},
-
-I wanted to follow up on my previous message about Neutrino's solutions for {category.lower()} teams.
-
-We've recently helped several organizations in the healthcare space improve their operations through our specialized IT solutions.
-
-Would you have time for a brief call this week?
-
-Best regards,
-{{{{sender_name}}}}
-Neutrino Tech Systems"""
-        
-        return {
-            "subject": subject,
-            "body": body
-        }
+            # No fallback – propagate error to caller
+            raise
+    # Removed fallback template generator – generation is LLM-only
     
     def personalize_template(
         self,

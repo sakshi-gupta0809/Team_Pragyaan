@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronDown, Edit2, MoreHorizontal, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Search, ChevronDown, Edit2, MoreHorizontal, ChevronLeft, ChevronRight, Sparkles, Trash2 } from 'lucide-react';
 import NeutrinoCampaignWorkflow from './neutrino/NeutrinoCampaignWorkflow';
 
 const CampaignsInterface = () => {
@@ -86,6 +86,31 @@ const CampaignsInterface = () => {
   const handleMoreOptions = (campaignId) => {
     console.log('More options for campaign:', campaignId);
     // Show dropdown with more options
+  };
+
+  const handleDeleteCampaign = async (campaignId) => {
+    const confirmed = window.confirm('Are you sure you want to delete this campaign? This action cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+      const numericId = String(campaignId).replace(/^#/, '');
+      const response = await fetch(`http://localhost:8000/api/campaigns/${numericId}`, {
+        method: 'DELETE',
+        headers: { 'Accept': 'application/json' },
+        mode: 'cors',
+        credentials: 'omit'
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || 'Failed to delete campaign');
+      }
+      // Remove from local state without refetching
+      setCampaigns(prev => prev.filter(c => c.id !== campaignId));
+      setTotalCampaigns(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error('Delete failed:', err);
+      alert('Failed to delete campaign.');
+    }
   };
 
 
@@ -268,6 +293,13 @@ const CampaignsInterface = () => {
                       onClick={() => handleMoreOptions(campaign.id)}
                     >
                       <MoreHorizontal className="w-4 h-4 text-gray-400" />
+                    </button>
+                    <button
+                      className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                      onClick={() => handleDeleteCampaign(campaign.id)}
+                      title="Delete campaign"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
                     </button>
                   </div>
                 </div>

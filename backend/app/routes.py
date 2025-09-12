@@ -1,4 +1,5 @@
 import logging
+import re
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -7,6 +8,7 @@ from typing import List
 from datetime import datetime
 import time
 from . import models, schemas, database
+from .template_generation import TemplateGenerator
 from .logging_utils import add_log_context  # Import from the dedicated logging module
 
 # Configure logger
@@ -14,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 # Create router with explicit CORS support
 router = APIRouter()
+## delete_campaign moved below get_db so Depends(get_db) is defined
+
 
 # Note: The log_request_details function has been replaced by comprehensive middleware
 # in main.py. For custom logging details in specific endpoints, use add_log_context()
@@ -43,6 +47,31 @@ class AIService:
     def compliance_check(email_body):
         # Placeholder: GDPR / spam check
         return True
+
+
+# -------------------- Campaigns --------------------
+@router.delete("/campaigns/{campaign_id}")
+def delete_campaign(request: Request, campaign_id: int, db: Session = Depends(get_db)):
+    # Add initial context
+    add_log_context(request, operation="delete_campaign", campaign_id=campaign_id)
+
+    campaign = db.query(models.Campaign).filter(models.Campaign.id == campaign_id).first()
+    if not campaign:
+        add_log_context(request, error="campaign_not_found")
+        logger.warning(f"Delete campaign failed: Campaign ID {campaign_id} not found")
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    try:
+        db.delete(campaign)  # cascades will remove related contacts/templates/emails/followups
+        db.commit()
+        add_log_context(request, status="success")
+        logger.info(f"Campaign deleted successfully: {campaign_id}")
+        return {"success": True, "campaign_id": campaign_id}
+    except Exception as e:
+        db.rollback()
+        add_log_context(request, status="error", error_type=type(e).__name__)
+        logger.error(f"Error deleting campaign {campaign_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error deleting campaign: {str(e)}")
 
 
 # -------------------- Users --------------------
@@ -169,6 +198,8 @@ def create_template(request: Request, campaign_id: int, template: schemas.EmailT
     new_template = models.EmailTemplate(
         subject=template.subject,
         body=template.body,
+        category=template.category,
+        step=template.step,
         campaign_id=campaign_id
     )
     db.add(new_template)
@@ -230,6 +261,23 @@ def generate_emails(request: Request, campaign_id: int, template_id: int, db: Se
     compliance_rejected = 0
     email_logs = []
     
+    generator = TemplateGenerator()
+
+    # Ensure scenario is inferred from description if not explicitly set
+    inferred_scenario = (campaign.scenario or "").strip().lower()
+    if (not inferred_scenario or inferred_scenario == "cold_outreach") and (campaign.description or "").strip():
+        try:
+            inferred_scenario = generator.infer_campaign_scenario(campaign.description)
+            # Persist the inferred scenario on the campaign for future runs
+            campaign.scenario = inferred_scenario
+            db.add(campaign)
+            db.commit()
+            db.refresh(campaign)
+            add_log_context(request, inferred_scenario=inferred_scenario)
+        except Exception:
+            # Keep existing scenario on failure
+            pass
+
     for contact in campaign.contacts:
         # AI compliance check
         compliance_result = AIService.compliance_check(template.body)
@@ -237,8 +285,35 @@ def generate_emails(request: Request, campaign_id: int, template_id: int, db: Se
             compliance_rejected += 1
             continue
 
-        # Personalize body
-        body = template.body.format(name=contact.name)
+        # Build contact data and personalize subject/body using TemplateGenerator
+        contact_data = {
+            "first_name": (contact.name or "").split()[0] if contact.name else "",
+            "last_name": (contact.name or "").split(" ", 1)[1] if (contact.name and " " in contact.name) else "",
+            "name": contact.name or "",
+            "email": contact.email or "",
+            "company": contact.company or "",
+            "company_name": contact.company or "",
+            "designation": contact.designation or "",
+            "job_title": contact.designation or "",
+            "industry": contact.industry or "",
+            # Campaign-level context for better personalization
+            "scenario": inferred_scenario or (campaign.scenario or ""),
+            "campaign_name": campaign.name or "",
+            "campaign_description": campaign.description or "",
+        }
+
+        personalized = generator.personalize_template(
+            {"subject": template.subject, "body": template.body},
+            contact_data
+        )
+
+        # Final sanitation: cleanup placeholders and fix missing-name greeting
+        subj = re.sub(r"\{\{\s*[^}]+\s*\}\}", "", personalized["subject"]).strip()
+        body_text = personalized["body"]
+        body_text = re.sub(r"\{\{\s*[^}]+\s*\}\}", "", body_text)
+        # If greeting like "Hi ," remains (no name), replace with a neutral fallback
+        body_text = re.sub(r"^(\s*)(hi|hello|hey|dear|greetings)\s*,", r"\1Hi there,", body_text, flags=re.IGNORECASE)
+        body_text = body_text.lstrip()  # remove leading blank lines/whitespace
 
         # AI predicted send time
         send_time = AIService.optimal_send_time(contact)
@@ -246,8 +321,8 @@ def generate_emails(request: Request, campaign_id: int, template_id: int, db: Se
         # Create email log
         email = models.EmailLog(
             recipient_email=contact.email,
-            subject=template.subject,
-            body=body,
+            subject=subj,
+            body=body_text,
             status="pending",
             campaign_id=campaign_id
         )

@@ -255,8 +255,11 @@ def schedule_campaign_emails(
         # Schedule follow-ups if any
         last_date = current_date
         for followup in followups:
-            # Calculate send date based on follow-up delay
-            followup_date = add_business_days(last_date, followup.delay_days)
+            # Calculate send date based on follow-up delay (minimum 2 business days)
+            delay_days = followup.delay_days or 2
+            if delay_days < 2:
+                delay_days = 2
+            followup_date = add_business_days(last_date, delay_days)
             
             # Create the follow-up email
             followup_email = models.EmailLog(

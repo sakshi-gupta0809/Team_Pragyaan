@@ -59,12 +59,15 @@ class CampaignWorkflow:
             logger.info(f"Inferred campaign scenario: {campaign_data.scenario}")
         
         # Create the campaign
+        # Enforce a minimum follow-up gap of 2 business days
+        safe_followup_gap = campaign_data.followup_gap_days if (campaign_data.followup_gap_days and campaign_data.followup_gap_days > 1) else 2
+
         db_campaign = models.Campaign(
             name=campaign_data.name,
             description=campaign_data.description,
             scenario=campaign_data.scenario or "cold_outreach",
             start_date=campaign_data.start_date,
-            followup_gap_days=campaign_data.followup_gap_days or 2,
+            followup_gap_days=safe_followup_gap,
             status="draft",
             owner_id=owner_id
         )
@@ -518,11 +521,11 @@ class CampaignWorkflow:
                 for step in sorted_steps[1:]:  # Skip step 1 (initial email)
                     followup_email = contact_emails[step]
                     
-                    # Calculate send date based on follow-up gap
-                    followup_date = add_business_days(
-                        last_date, 
-                        campaign.followup_gap_days or 2
-                    )
+                    # Calculate send date based on follow-up gap (minimum 2)
+                    gap_days = campaign.followup_gap_days or 2
+                    if gap_days < 2:
+                        gap_days = 2
+                    followup_date = add_business_days(last_date, gap_days)
                     
                     # Create schedule
                     followup_schedule = models.Schedule(
