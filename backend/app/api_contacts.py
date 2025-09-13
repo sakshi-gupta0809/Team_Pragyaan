@@ -1,6 +1,6 @@
 # backend/app/api_contacts.py
 from typing import Optional
-from fastapi import APIRouter, Query, Depends
+from fastapi import APIRouter, Query, Depends, HTTPException, Path
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, desc, asc
 from math import ceil
@@ -94,3 +94,18 @@ def list_contacts(
         "total_pages": total_pages,
         "contacts": contacts_out
     }
+
+
+@router.delete("/contacts/{contact_id}")
+def delete_contact(
+    contact_id: int = Path(..., gt=0),
+    db: Session = Depends(get_db)
+):
+    """Delete a contact by ID"""
+    contact = db.query(Contact).filter(Contact.id == contact_id).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    db.delete(contact)
+    db.commit()
+    return {"message": "Contact deleted successfully"}

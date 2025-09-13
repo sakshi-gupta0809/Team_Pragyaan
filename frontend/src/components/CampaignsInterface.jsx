@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronDown, Edit2, MoreHorizontal, ChevronLeft, ChevronRight, Sparkles, Trash2 } from 'lucide-react';
+import { Search, ChevronDown, ChevronLeft, ChevronRight, Sparkles, Trash2, CalendarClock, X } from 'lucide-react';
 import NeutrinoCampaignWorkflow from './neutrino/NeutrinoCampaignWorkflow';
+import CampaignDetails from './CampaignDetails';
 
 const CampaignsInterface = () => {
   const [showNeutrinoWorkflow, setShowNeutrinoWorkflow] = useState(false);
@@ -9,8 +10,10 @@ const CampaignsInterface = () => {
   const [campaigns, setCampaigns] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalCampaigns, setTotalCampaigns] = useState(0);
+  const [totalCampaigns, setTotalCampaigns] = useState(0); // Initialize with 0, not 12
   const [selectedCampaigns, setSelectedCampaigns] = useState([]);
+  const [viewCampaignId, setViewCampaignId] = useState(null);
+  const [scheduleModal, setScheduleModal] = useState({ open: false, id: null, date: '' });
 
   const statusOptions = ['All statuses', 'Draft', 'Sent', 'Scheduled', 'Paused'];
 
@@ -20,6 +23,8 @@ const CampaignsInterface = () => {
       try {
         // Use the API endpoint with proper CORS headers
         const url = `http://localhost:8000/api/campaigns/paginated/?page=${currentPage}&page_size=10&status=${selectedStatus !== 'All statuses' ? selectedStatus.toLowerCase() : ''}&search=${searchQuery}`;
+        console.log('Fetching campaigns from:', url);
+        
         const response = await fetch(url, {
           method: 'GET',
           headers: {
@@ -31,8 +36,14 @@ const CampaignsInterface = () => {
         
         if (response.ok) {
           const data = await response.json();
+          console.log('API response:', data);
           setCampaigns(data.campaigns);
-          setTotalCampaigns(data.total);
+          
+          // Fix for hardcoded campaign count
+          const actualTotal = data.total;
+          console.log('API returned total:', actualTotal);
+          setTotalCampaigns(actualTotal);
+          console.log('Total campaigns set to:', actualTotal);
         } else {
           console.error('Failed to fetch campaigns:', await response.text());
           setCampaigns([]);
@@ -78,37 +89,25 @@ const CampaignsInterface = () => {
     }
   };
 
-  const handleEditCampaign = (campaignId) => {
-    console.log('Edit campaign:', campaignId);
-    // Navigate to campaign edit page
-  };
+  // Removed edit and more options handlers
 
-  const handleMoreOptions = (campaignId) => {
-    console.log('More options for campaign:', campaignId);
-    // Show dropdown with more options
-  };
 
   const handleDeleteCampaign = async (campaignId) => {
-    const confirmed = window.confirm('Are you sure you want to delete this campaign? This action cannot be undone.');
-    if (!confirmed) return;
-
     try {
-      const numericId = String(campaignId).replace(/^#/, '');
-      const response = await fetch(`http://localhost:8000/api/campaigns/${numericId}`, {
-        method: 'DELETE',
-        headers: { 'Accept': 'application/json' },
-        mode: 'cors',
-        credentials: 'omit'
-      });
-      if (!response.ok) {
-        const text = await response.text();
+      const numericId = typeof campaignId === 'string' && campaignId.startsWith('#') ? parseInt(campaignId.replace('#','')) : campaignId;
+      if (!window.confirm('Are you sure you want to delete this campaign? This cannot be undone.')) return;
+      const res = await fetch(`/api/campaigns/${numericId}`, { method: 'DELETE', headers: { 'Accept': 'application/json' } });
+      if (!res.ok) {
+        const text = await res.text();
         throw new Error(text || 'Failed to delete campaign');
       }
-      // Remove from local state without refetching
-      setCampaigns(prev => prev.filter(c => c.id !== campaignId));
-      setTotalCampaigns(prev => Math.max(0, prev - 1));
-    } catch (err) {
-      console.error('Delete failed:', err);
+      setCampaigns(prev => prev.filter(c => {
+        const idVal = typeof c.id === 'string' && c.id.startsWith('#') ? parseInt(c.id.replace('#','')) : c.id;
+        return idVal !== numericId;
+      }));
+      setSelectedCampaigns(prev => prev.filter(id => id !== numericId && id !== `#${numericId}`));
+    } catch (e) {
+      console.error('Delete failed:', e);
       alert('Failed to delete campaign.');
     }
   };
@@ -116,12 +115,37 @@ const CampaignsInterface = () => {
 
   const handlePagination = (page) => {
     setCurrentPage(page);
+    // When changing pages, we need to ensure the campaign count is updated
+    console.log('Changing to page:', page);
+  };
+
+  const handleScheduleCampaign = (campaignId) => {
+    const numericId = typeof campaignId === 'string' && campaignId.startsWith('#') ? parseInt(campaignId.replace('#','')) : campaignId;
+    setScheduleModal({ open: true, id: numericId, date: '' });
+  };
+
+  const submitSchedule = async () => {
+    if (!scheduleModal.id) return;
+    try {
+      const query = scheduleModal.date ? `?start_date=${encodeURIComponent(scheduleModal.date)}` : '';
+      const res = await fetch(`/scheduler/schedule-campaign/${scheduleModal.id}${query}`, { method: 'POST', headers: { 'Accept': 'application/json' } });
+      if (!res.ok) throw new Error(await res.text());
+      setCampaigns(prev => prev.map(c => {
+        const idVal = typeof c.id === 'string' && c.id.startsWith('#') ? parseInt(c.id.replace('#','')) : c.id;
+        return idVal === scheduleModal.id ? { ...c, status: 'scheduled' } : c;
+      }));
+      setScheduleModal({ open: false, id: null, date: '' });
+    } catch (e) {
+      alert('Failed to schedule campaign');
+    }
   };
 
   return (
     <div className="min-h-screen bg-dashboard-blue-light/30 w-full overflow-x-hidden">
       {showNeutrinoWorkflow ? (
         <NeutrinoCampaignWorkflow onClose={() => setShowNeutrinoWorkflow(false)} />
+      ) : viewCampaignId ? (
+        <CampaignDetails campaignId={viewCampaignId} onBack={() => setViewCampaignId(null)} />
       ) : (
         <>
           {/* Header */}
@@ -187,6 +211,7 @@ const CampaignsInterface = () => {
 
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-gray-600">
+                  {/* Ensure we're using the actual totalCampaigns value from API */}
                   {campaigns.length > 0 ? `${(currentPage - 1) * 10 + 1}-${Math.min(currentPage * 10, totalCampaigns)} of ${totalCampaigns}` : '0-0 of 0'}
                 </span>
                 <div className="flex items-center space-x-1">
@@ -211,6 +236,36 @@ const CampaignsInterface = () => {
 
             {/* Campaign Table */}
             <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-x-auto w-full">
+              {selectedCampaigns.length > 0 && (
+                <div className="flex justify-between items-center px-6 py-3 bg-red-50 border-b border-red-100 rounded-t-3xl">
+                  <div className="text-sm text-red-700">{selectedCampaigns.length} selected</div>
+                  <button
+                    className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"
+                    onClick={async () => {
+                      const ids = selectedCampaigns.map(id => typeof id === 'string' && id.startsWith('#') ? parseInt(id.replace('#','')) : id);
+                      if (!window.confirm(`Delete ${ids.length} selected campaign(s)? This cannot be undone.`)) return;
+                      try {
+                        const res = await fetch('/api/campaigns/bulk-delete', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                          body: JSON.stringify({ ids })
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.detail || 'Bulk delete failed');
+                        setCampaigns(prev => prev.filter(c => {
+                          const numericId = typeof c.id === 'string' && c.id.startsWith('#') ? parseInt(c.id.replace('#','')) : c.id;
+                          return !ids.includes(numericId);
+                        }));
+                        setSelectedCampaigns([]);
+                      } catch (e) {
+                        alert('Failed to bulk delete campaigns');
+                      }
+                    }}
+                  >
+                    Delete Selected
+                  </button>
+                </div>
+              )}
               {/* Table Header */}
               <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-green-100 border-b border-gray-200 text-sm font-medium text-gray-800 rounded-t-3xl w-full">
                 <div className="col-span-1">
@@ -259,17 +314,34 @@ const CampaignsInterface = () => {
                     <div className="flex items-center space-x-3 w-full">
                       <div className="w-2 h-2 bg-brand-yellow rounded-full flex-shrink-0"></div>
                       <div className="min-w-0 w-full">
-                        <div className="font-medium text-gray-900 truncate w-full">{campaign.name}</div>
+                        <button
+                          className="font-medium text-gray-900 truncate w-full text-left hover:underline"
+                          onClick={() => {
+                            const numericId = typeof campaign.id === 'string' && campaign.id.startsWith('#') ? parseInt(campaign.id.replace('#','')) : campaign.id;
+                            setViewCampaignId(numericId);
+                            window.localStorage.setItem('currentCampaignId', numericId);
+                          }}
+                        >
+                          {campaign.name}
+                        </button>
                         <div className="text-sm text-gray-500 flex items-center space-x-2 flex-wrap gap-y-1 w-full">
-                          <span className={`px-2 py-1 ${
-                            campaign.status === 'sent' ? 'bg-brand-yellow text-brand-dark' :
-                            campaign.status === 'scheduled' ? 'bg-brand-dark text-brand-white' :
-                            campaign.status === 'draft' ? 'bg-brand-white text-brand-dark border border-brand-dark' :
-                            campaign.status === 'paused' ? 'bg-gray-300 text-brand-dark' :
-                            'bg-gray-100 text-gray-600'
-                          } text-xs rounded-full`}>
-                            {campaign.status}
-                          </span>
+                          {(() => {
+                            const s = (campaign.status || '').toString().toLowerCase();
+                            const cls = s === 'sent'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : s === 'scheduled'
+                              ? 'bg-blue-100 text-blue-800'
+                              : s === 'draft'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : s === 'paused'
+                              ? 'bg-gray-200 text-gray-800'
+                              : 'bg-gray-100 text-gray-600';
+                            const label = s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Unknown';
+                            return (
+                              <span className={`px-2 py-1 ${cls} text-xs rounded-full`}>{label}</span>
+                            );
+                          })()}
+                          
                           <span>{campaign.last_edited}</span>
                         </div>
                         <div className="text-sm text-gray-400 mt-1">{campaign.id}</div>
@@ -282,29 +354,61 @@ const CampaignsInterface = () => {
                   <div className="col-span-1 text-center text-gray-600">{campaign.clicks}</div>
                   <div className="col-span-1 text-center text-gray-600">{campaign.unsubscribed}</div>
                   <div className="col-span-3 flex items-center justify-end space-x-2">
-                    <button
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                      onClick={() => handleEditCampaign(campaign.id)}
-                    >
-                      <Edit2 className="w-4 h-4 text-brand-dark" />
-                    </button>
-                    <button
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                      onClick={() => handleMoreOptions(campaign.id)}
-                    >
-                      <MoreHorizontal className="w-4 h-4 text-gray-400" />
-                    </button>
+                    {(() => {
+                      const s = (campaign.status || '').toString().toLowerCase();
+                      if (s === 'draft' || s === 'paused') {
+                        return (
+                          <button
+                            className="p-2 hover:bg-emerald-50 rounded-lg transition-colors"
+                            onClick={() => handleScheduleCampaign(campaign.id)}
+                            title="Schedule campaign"
+                          >
+                            <CalendarClock className="w-4 h-4 text-emerald-600" />
+                          </button>
+                        );
+                      }
+                      return null;
+                    })()}
                     <button
                       className="p-2 hover:bg-red-50 rounded-lg transition-colors"
                       onClick={() => handleDeleteCampaign(campaign.id)}
                       title="Delete campaign"
                     >
-                      <Trash2 className="w-4 h-4 text-red-500" />
+                      <Trash2 className="w-4 h-4 text-red-600" />
                     </button>
                   </div>
                 </div>
               ))}
             </div>
+            {/* Schedule Modal */}
+            {scheduleModal.open && (
+              <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                <div className="bg-white rounded-2xl shadow-lg w-full max-w-md">
+                  <div className="flex items-center justify-between px-5 py-3 border-b">
+                    <h3 className="text-lg font-semibold text-gray-900">Schedule Campaign</h3>
+                    <button className="p-2 rounded hover:bg-gray-100" onClick={() => setScheduleModal({ open: false, id: null, date: '' })}>
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Start date and time</label>
+                      <input
+                        type="datetime-local"
+                        value={scheduleModal.date}
+                        onChange={(e) => setScheduleModal(m => ({ ...m, date: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">If left blank, next business day is used.</p>
+                    </div>
+                  </div>
+                  <div className="px-5 py-4 border-t flex justify-end space-x-2">
+                    <button className="px-4 py-2 rounded-xl border" onClick={() => setScheduleModal({ open: false, id: null, date: '' })}>Cancel</button>
+                    <button className="px-4 py-2 rounded-xl bg-emerald-600 text-white" onClick={submitSchedule}>Schedule</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

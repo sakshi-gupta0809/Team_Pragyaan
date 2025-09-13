@@ -3,13 +3,32 @@ import { Download, FileText, CheckCircle, Mail, Users, Calendar, ArrowRight } fr
 
 const CampaignOutput = ({ campaignData, onDownload, isLoading }) => {
   const [showDetails, setShowDetails] = useState(false);
-  
-  // Group emails by category
-  const emailsByCategory = campaignData.emails.reduce((acc, email) => {
-    if (!acc[email.category]) {
-      acc[email.category] = [];
+  const [sendStatus, setSendStatus] = useState({ running: false, result: null, error: null });
+
+  const triggerSendNow = async () => {
+    setSendStatus({ running: true, result: null, error: null });
+    try {
+      const res = await fetch('http://localhost:8000/emails/process-now', {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to process emails');
+      setSendStatus({ running: false, result: data, error: null });
+    } catch (e) {
+      setSendStatus({ running: false, result: null, error: e.message });
     }
-    acc[email.category].push(email);
+  };
+
+  
+  
+  // Group emails by category with safe fallbacks
+  const emailsByCategory = campaignData.emails.reduce((acc, email) => {
+    const normalizedCategory = (email.category || email.recipient_category || 'Other').toString();
+    if (!acc[normalizedCategory]) {
+      acc[normalizedCategory] = [];
+    }
+    acc[normalizedCategory].push(email);
     return acc;
   }, {});
   
@@ -92,7 +111,7 @@ const CampaignOutput = ({ campaignData, onDownload, isLoading }) => {
                 <Mail className="h-6 w-6" />
               </div>
               <div>
-                <p className="text-sm text-gray-500">Emails</p>
+                <p className="text-sm text-gray-500">Emails (scheduled)</p>
                 <p className="text-xl font-semibold text-gray-900">{totalEmails}</p>
               </div>
             </div>
@@ -109,6 +128,31 @@ const CampaignOutput = ({ campaignData, onDownload, isLoading }) => {
               </div>
             </div>
           </div>
+        </div>
+
+        
+
+        {/* Send now */}
+        <div className="mb-6 bg-gray-50 rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">Send Due Emails</h3>
+              <p className="text-sm text-gray-500">Trigger immediate sending for emails scheduled up to now.</p>
+            </div>
+            <button
+              onClick={triggerSendNow}
+              disabled={sendStatus.running}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl shadow-sm text-dark bg-primary hover:bg-opacity-90"
+            >
+              {sendStatus.running ? 'Processing...' : 'Send Now'}
+            </button>
+          </div>
+          {sendStatus.error && (
+            <div className="mt-3 text-sm text-red-600">{sendStatus.error}</div>
+          )}
+          {sendStatus.result && (
+            <div className="mt-3 text-sm text-green-700">Processed {sendStatus.result.processed_count} emails.</div>
+          )}
         </div>
         
         {/* Category breakdown */}
@@ -144,7 +188,7 @@ const CampaignOutput = ({ campaignData, onDownload, isLoading }) => {
                 <div key={category} className="border border-gray-200 rounded-xl overflow-hidden">
                   <div className={`px-4 py-3 ${getCategoryStyle(category)}`}>
                     <div className="flex justify-between items-center">
-                      <h4 className="font-medium">{category}</h4>
+                      <h4 className="font-medium">{category || 'Other'}</h4>
                       <span className="text-sm">{emails.length} emails</span>
                     </div>
                   </div>
@@ -160,7 +204,12 @@ const CampaignOutput = ({ campaignData, onDownload, isLoading }) => {
                               <span className="text-gray-500 truncate">{email.subject}</span>
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
-                              Scheduled: {new Date(email.scheduledDate).toLocaleDateString()} ({email.followUpDay === 0 ? 'Initial' : `Day ${email.followUpDay}`})
+                              {(() => {
+                                const scheduled = email.scheduledDate ? new Date(email.scheduledDate) : null;
+                                const dateStr = scheduled && !isNaN(scheduled) ? scheduled.toLocaleDateString() : '-';
+                                const dayLabel = typeof email.followUpDay === 'number' ? (email.followUpDay === 0 ? 'Initial' : `Day ${email.followUpDay}`) : 'Initial';
+                                return `Scheduled: ${dateStr} (${dayLabel})`;
+                              })()}
                             </div>
                           </div>
                         ))}

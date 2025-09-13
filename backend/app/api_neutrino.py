@@ -16,11 +16,11 @@ from .email_generator import EmailGenerator
 from .template_generation import TemplateGenerator
 from pathlib import Path
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Path, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, Path, File, UploadFile, Form, Body
 from fastapi.responses import Response, JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from .models import Campaign, Contact
+from .models import Campaign, Contact, EmailLog, Schedule, EmailTemplate
 from .schemas import CampaignCreate
 from .contact_categorization import categorize_designation
 
@@ -797,43 +797,54 @@ async def approve_categories(
                 template_identifier = f"{campaign_signature}-{cat_id}-{now.microsecond}"
                 
                 # Use the template generator with highly differentiated context
+                # Prepare additional context
+                additional_context = {
+                    # Identification and entropy
+                    "campaign_id": campaign_id,
+                    "category_seed": category_seed,
+                    "template_identifier": template_identifier,
+                    "timestamp": now.isoformat(),
+                    
+                    # Category-specific style guides
+                    "writing_style": category_writing_styles.get(cat_id, "balanced, professional"),
+                    "email_structure": category_email_structures.get(cat_id, "problem-solution-action"),
+                    "communication_tone": category_tones.get(cat_id, "professional, friendly"),
+                    "intro_pattern": category_intro_patterns.get(cat_id, ""),
+                    "value_proposition": category_value_props.get(cat_id, ""),
+                    
+                    # Content guidance
+                    "focus_terms": category_specific_terms.get(cat_id, ["business improvement"]),
+                    "contact_data": category_contacts[:5],  # Representative contacts
+                    "common_industries": industries[:3],    # Top industries
+                    "common_job_titles": job_titles[:5],    # Top job titles
+                    "contact_count": len(category_contacts),
+                    
+                    # Force uniqueness by explicitly avoiding common patterns
+                    "avoid_phrases": [
+                        "optimize healthcare IT operations while maintaining compliance",
+                        "I hope this email finds you well",
+                        "streamline operations, improve compliance, and enhance patient engagement",
+                        "Would you be open to a quick call this week",
+                        "As a [title] at [company]",
+                        "I understand that as the [title] at [company]",
+                        "I noticed that [company] is in the [industry] space",
+                        "Our team has extensive experience working with"
+                    ]
+                }
+                
+                # For conference/in-person scenario, add the campaign description as the venue
+                if scenario == "conference":
+                    # Use campaign description as the venue/place/city to meet
+                    venue = campaign.description if campaign.description else "the conference"
+                    additional_context["venue"] = venue
+                    additional_context["meeting_location"] = venue
+                    logger.info(f"Using campaign description as venue for in-person meeting: {venue}")
+                
                 generated_template = template_generator.generate_template_for_category(
                     internal_category,
                     scenario,
                     step=1,  # Initial email
-                    additional_context={
-                        # Identification and entropy
-                        "campaign_id": campaign_id,
-                        "category_seed": category_seed,
-                        "template_identifier": template_identifier,
-                        "timestamp": now.isoformat(),
-                        
-                        # Category-specific style guides
-                        "writing_style": category_writing_styles.get(cat_id, "balanced, professional"),
-                        "email_structure": category_email_structures.get(cat_id, "problem-solution-action"),
-                        "communication_tone": category_tones.get(cat_id, "professional, friendly"),
-                        "intro_pattern": category_intro_patterns.get(cat_id, ""),
-                        "value_proposition": category_value_props.get(cat_id, ""),
-                        
-                        # Content guidance
-                        "focus_terms": category_specific_terms.get(cat_id, ["business improvement"]),
-                        "contact_data": category_contacts[:5],  # Representative contacts
-                        "common_industries": industries[:3],    # Top industries
-                        "common_job_titles": job_titles[:5],    # Top job titles
-                        "contact_count": len(category_contacts),
-                        
-                        # Force uniqueness by explicitly avoiding common patterns
-                        "avoid_phrases": [
-                            "optimize healthcare IT operations while maintaining compliance",
-                            "I hope this email finds you well",
-                            "streamline operations, improve compliance, and enhance patient engagement",
-                            "Would you be open to a quick call this week",
-                            "As a [title] at [company]",
-                            "I understand that as the [title] at [company]",
-                            "I noticed that [company] is in the [industry] space",
-                            "Our team has extensive experience working with"
-                        ]
-                    }
+                    additional_context=additional_context
                 )
                 
                 # Store the template
@@ -853,7 +864,36 @@ async def approve_categories(
                 raise HTTPException(status_code=500, detail=error_message)
         
         logger.info(f"Generated {len(templates)} templates for campaign {campaign_id}")
-        
+
+        # Persist generated templates to DB (upsert by campaign + category)
+        try:
+            saved_count = 0
+            for t in templates:
+                category_id = t.get("categoryId") or "other"
+                subject = t.get("subject") or ""
+                body = t.get("body") or ""
+
+                existing_tpl = db.query(EmailTemplate).filter(
+                    EmailTemplate.campaign_id == campaign_id,
+                    EmailTemplate.category == category_id
+                ).first()
+                if existing_tpl:
+                    existing_tpl.subject = subject
+                    existing_tpl.body = body
+                else:
+                    db.add(EmailTemplate(
+                        subject=subject,
+                        body=body,
+                        category=category_id,
+                        campaign_id=campaign_id
+                    ))
+                saved_count += 1
+            db.commit()
+            logger.info(f"Saved/updated {saved_count} templates to DB for campaign {campaign_id}")
+        except Exception as save_err:
+            db.rollback()
+            logger.error(f"Failed saving generated templates to DB for campaign {campaign_id}: {save_err}")
+
         return JSONResponse({
             "success": True,
             "campaign_id": campaign_id,
@@ -1032,46 +1072,57 @@ async def regenerate_template(
             template_identifier = f"{campaign_id}-{category_id}-{now.strftime('%Y%m%d%H%M%S%f')}-regenerated"
             
             # Use the template generator with highly differentiated context
+            # Prepare additional context
+            additional_context = {
+                # Identification and entropy
+                "campaign_id": campaign_id,
+                "category_seed": category_seed,
+                "template_identifier": template_identifier,
+                "timestamp": now.isoformat(),
+                
+                # Category-specific style guides
+                "writing_style": category_writing_styles.get(category_id, "balanced, professional"),
+                "email_structure": category_email_structures.get(category_id, "problem-solution-action"),
+                "communication_tone": category_tones.get(category_id, "professional, friendly"),
+                "intro_pattern": category_intro_patterns.get(category_id, ""),
+                "value_proposition": category_value_props.get(category_id, ""),
+                
+                # Content guidance
+                "focus_terms": category_specific_terms.get(category_id, ["business improvement"]),
+                "contact_data": category_contacts[:5],  # Representative contacts
+                "common_industries": industries[:3],    # Top industries
+                "common_job_titles": job_titles[:5],    # Top job titles
+                "contact_count": len(category_contacts),
+                
+                # Force uniqueness by explicitly avoiding common patterns
+                "avoid_phrases": [
+                    "optimize healthcare IT operations while maintaining compliance",
+                    "I hope this email finds you well",
+                    "streamline operations, improve compliance, and enhance patient engagement",
+                    "Would you be open to a quick call this week",
+                    "As a [title] at [company]",
+                    "I understand that as the [title] at [company]",
+                    "I noticed that [company] is in the [industry] space",
+                    "Our team has extensive experience working with"
+                ],
+                
+                # Flag to indicate this is a regenerated template
+                "is_regenerated": True
+            }
+            
+            # For conference/in-person scenario, add the campaign description as the venue
+            if scenario == "conference":
+                # Use campaign description as the venue/place/city to meet
+                venue = campaign.description if campaign.description else "the conference"
+                additional_context["venue"] = venue
+                additional_context["meeting_location"] = venue
+                logger.info(f"Using campaign description as venue for in-person meeting: {venue}")
+            
             generated_template = template_generator.generate_template_for_category(
                 internal_category,
                 scenario,
                 step=1,  # Initial email
-                additional_context={
-                    # Identification and entropy
-                    "campaign_id": campaign_id,
-                    "category_seed": category_seed,
-                    "template_identifier": template_identifier,
-                    "timestamp": now.isoformat(),
-                    
-                    # Category-specific style guides
-                    "writing_style": category_writing_styles.get(category_id, "balanced, professional"),
-                    "email_structure": category_email_structures.get(category_id, "problem-solution-action"),
-                    "communication_tone": category_tones.get(category_id, "professional, friendly"),
-                    "intro_pattern": category_intro_patterns.get(category_id, ""),
-                    "value_proposition": category_value_props.get(category_id, ""),
-                    
-                    # Content guidance
-                    "focus_terms": category_specific_terms.get(category_id, ["business improvement"]),
-                    "contact_data": category_contacts[:5],  # Representative contacts
-                    "common_industries": industries[:3],    # Top industries
-                    "common_job_titles": job_titles[:5],    # Top job titles
-                    "contact_count": len(category_contacts),
-                    
-                    # Force uniqueness by explicitly avoiding common patterns
-                    "avoid_phrases": [
-                        "optimize healthcare IT operations while maintaining compliance",
-                        "I hope this email finds you well",
-                        "streamline operations, improve compliance, and enhance patient engagement",
-                        "Would you be open to a quick call this week",
-                        "As a [title] at [company]",
-                        "I understand that as the [title] at [company]",
-                        "I noticed that [company] is in the [industry] space",
-                        "Our team has extensive experience working with"
-                    ],
-                    
-                    # Flag to indicate this is a regenerated template
-                    "is_regenerated": True
-                }
+                additional_context=additional_context
             )
             
             # Return the regenerated template
@@ -1105,19 +1156,47 @@ async def save_templates(
     db: Session = Depends(get_db)
 ):
     """
-    Save email templates for a campaign.
-    This endpoint is called from the Neutrino workflow after templates have been edited.
+    Save email templates for a campaign to the database.
+    Accepts payload: { templates: [{ categoryId, subject, body }, ...] }
     """
     try:
-        # In a real implementation, this would save templates to the database
-        # For now, just return success with the provided templates
-        
+        if not templates or 'templates' not in templates:
+            raise HTTPException(status_code=400, detail="Missing templates in payload")
+
+        saved = []
+        for t in templates['templates']:
+            category_id = t.get('categoryId') or t.get('category') or 'other'
+            subject = t.get('subject') or ''
+            body = t.get('body') or ''
+
+            # Upsert by campaign_id + category
+            existing = db.query(EmailTemplate).filter(
+                EmailTemplate.campaign_id == campaign_id,
+                EmailTemplate.category == category_id
+            ).first()
+            if existing:
+                existing.subject = subject
+                existing.body = body
+            else:
+                db.add(EmailTemplate(
+                    subject=subject,
+                    body=body,
+                    category=category_id,
+                    campaign_id=campaign_id
+                ))
+            saved.append({"categoryId": category_id, "subject": subject, "body": body})
+
+        db.commit()
+
         return JSONResponse({
             "success": True,
             "campaign_id": campaign_id,
-            "templates": templates.get('templates', [])
+            "templates": saved
         })
+    except HTTPException:
+        raise
     except Exception as e:
+        db.rollback()
         logger.error(f"Error saving templates: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error saving templates: {str(e)}")
 
@@ -1126,48 +1205,158 @@ async def save_templates(
 @router.post("/campaigns/{campaign_id}/schedule/approve")
 async def approve_schedule(
     campaign_id: int = Path(..., gt=0),
-    data: Dict[str, Any] = None,
+    data: Dict[str, Any] = Body(None),
     db: Session = Depends(get_db)
 ):
     """
     Approve the schedule for a campaign.
-    This endpoint is called from the Neutrino workflow after scheduling has been set up.
+    This creates EmailLog and Schedule rows so emails can actually send.
     """
     try:
-        # Mock email schedules for demo purposes
-        mock_emails = [
-            {
-                "id": "mock-1",
-                "recipient": "john@example.com",
-                "subject": "Partnership opportunity with our company",
-                "body": "Dear John,\n\nI hope this email finds you well...",
-                "scheduledDate": datetime.now().isoformat(),
+        # Validate campaign exists
+        campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+        if not campaign:
+            raise HTTPException(status_code=404, detail=f"Campaign with ID {campaign_id} not found")
+
+        # Load contacts strictly from request payload or file (no implicit DB fallback)
+        contacts: List[Dict[str, Any]] = []
+        # Prefer explicit contacts provided in the request body
+        if data and isinstance(data, dict) and isinstance(data.get("contacts"), list):
+            contacts = data.get("contacts") or []
+        else:
+            contacts_file = os.path.join(DATA_DIR, f"campaign_{campaign_id}_contacts.json")
+            if os.path.exists(contacts_file):
+                with open(contacts_file, 'r') as f:
+                    payload = json.load(f)
+                    contacts = payload.get("contacts", [])
+            else:
+                # If neither request nor file provides contacts, require explicit input
+                raise HTTPException(status_code=400, detail="No contacts provided to schedule. Upload a leads file or include contacts in the request.")
+
+        # Decide start date
+        start_iso = None
+        if data and isinstance(data, dict):
+            start_iso = data.get("startDate") or data.get("start_date")
+        try:
+            start_dt = datetime.fromisoformat(start_iso) if start_iso else datetime.now()
+        except Exception:
+            start_dt = datetime.now()
+
+        # Load saved templates for this campaign
+        templates = db.query(EmailTemplate).filter(EmailTemplate.campaign_id == campaign_id).all()
+        templates_by_category = { (tpl.category or 'other'): tpl for tpl in templates }
+
+        # Create EmailLogs and Schedules (skip duplicates)
+        created_emails: List[Dict[str, Any]] = []
+        for idx, contact in enumerate(contacts):
+            email_addr = contact.get("email")
+            if not email_addr or not isinstance(email_addr, str) or "@" not in email_addr:
+                continue
+
+            # Skip if a pending schedule already exists for this recipient in this campaign
+            existing = (
+                db.query(Schedule)
+                .join(EmailLog, Schedule.email_log_id == EmailLog.id)
+                .filter(
+                    EmailLog.campaign_id == campaign_id,
+                    EmailLog.recipient_email == email_addr,
+                    EmailLog.status == "pending",
+                    Schedule.is_sent == False
+                )
+                .first()
+            )
+            if existing:
+                continue
+
+            # Choose template by contact category or fallback
+            cat = (contact.get("category") or "other").lower()
+            tpl = templates_by_category.get(cat) or next(iter(templates_by_category.values()), None)
+
+            if tpl:
+                subject = tpl.subject or ""
+                body = tpl.body or ""
+            else:
+                subject = f"{campaign.name} - Introduction"
+                body = (
+                    f"Hi {{name}},\n\n"
+                    f"We'd love to connect with {{company}}.\n\nBest regards,"
+                )
+
+            # Personalize subject and body
+            name = contact.get('name') or ''
+            company = contact.get('company') or ''
+            subject = (subject
+                .replace('{{name}}', name)
+                .replace('{{company}}', company)
+                .replace('{name}', name)
+                .replace('{company}', company)
+            )
+            body = (body
+                .replace('{{name}}', name)
+                .replace('{{company}}', company)
+                .replace('{name}', name)
+                .replace('{company}', company)
+            )
+
+            # Ensure greeting and signed-off closing
+            tb = body.strip()
+            if not tb.lower().startswith(("hi ", "hello ", "dear ")):
+                body = (f"Hi {name},\n\n" if name else "Hello,\n\n") + body
+            if ("thank you" not in body.lower()) and ("regards" not in body.lower()) and ("sincerely" not in body.lower()):
+                body = body.rstrip() + "\n\nThank you,\nNeutrino Tech Systems"
+
+            # Find DB contact row for contact_id mapping
+            db_contact = db.query(Contact).filter(Contact.email == email_addr, Contact.campaign_id == campaign_id).first()
+
+            email_log = EmailLog(
+                recipient_email=email_addr,
+                recipient_name=name,
+                recipient_company=company,
+                recipient_category=cat,
+                subject=subject,
+                body=body,
+                status="pending",
+                campaign_id=campaign_id,
+                contact_id=db_contact.id if db_contact else None,
+            )
+            db.add(email_log)
+            db.flush()
+
+            schedule = Schedule(
+                send_time=start_dt,
+                is_holiday=False,
+                is_sent=False,
+                email_log_id=email_log.id,
+            )
+            db.add(schedule)
+
+            created_emails.append({
+                "id": email_log.id,
+                "recipient": email_addr,
+                "category": cat,
+                "subject": subject,
+                "body": body,
+                "scheduledDate": start_dt.isoformat(),
                 "status": "scheduled"
-            },
-            {
-                "id": "mock-2",
-                "recipient": "jane@example.com",
-                "subject": "Improving operational efficiency",
-                "body": "Hello Jane,\n\nI wanted to connect regarding...",
-                "scheduledDate": datetime.now().isoformat(),
-                "status": "scheduled"
-            },
-            {
-                "id": "mock-3",
-                "recipient": "alex@example.com",
-                "subject": "New technical solutions for your company",
-                "body": "Hi Alex,\n\nI'm reaching out to discuss...",
-                "scheduledDate": datetime.now().isoformat(),
-                "status": "scheduled"
-            }
-        ]
-        
+            })
+
+        # If we created schedules, mark campaign as scheduled
+        if created_emails:
+            try:
+                campaign.status = "scheduled"
+            except Exception:
+                pass
+
+        db.commit()
+
         return JSONResponse({
             "success": True,
             "campaign_id": campaign_id,
-            "emails": mock_emails
+            "emails": created_emails,
+            "status": campaign.status
         })
     except Exception as e:
+        db.rollback()
         logger.error(f"Error approving schedule: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error approving schedule: {str(e)}")
 

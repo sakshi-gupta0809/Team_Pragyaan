@@ -4,12 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 from datetime import datetime
 import time
 from . import models, schemas, database
 from .template_generation import TemplateGenerator
 from .logging_utils import add_log_context  # Import from the dedicated logging module
+from .scheduler import process_scheduled_emails
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -374,6 +376,21 @@ def get_emails(request: Request, campaign_id: int, db: Session = Depends(get_db)
     return emails
 
 
+# -------------------- Delete Template --------------------
+@router.delete("/templates/{template_id}")
+@router.delete("/api/templates/{template_id}")
+def delete_template(request: Request, template_id: int, db: Session = Depends(get_db)):
+    add_log_context(request, operation="delete_template", template_id=template_id)
+    template = db.query(models.EmailTemplate).filter(models.EmailTemplate.id == template_id).first()
+    if not template:
+        add_log_context(request, status="error", error="template_not_found")
+        raise HTTPException(status_code=404, detail="Template not found")
+    db.delete(template)
+    db.commit()
+    add_log_context(request, status="success")
+    return {"message": "Template deleted successfully"}
+
+
 # -------------------- Follow-ups --------------------
 @router.post("/campaigns/{campaign_id}/followups/", response_model=schemas.FollowUp)
 def create_followup(request: Request, campaign_id: int, followup: schemas.FollowUpCreate, db: Session = Depends(get_db)):
@@ -475,3 +492,52 @@ def get_schedules(request: Request, db: Session = Depends(get_db)):
     add_log_context(request, schedule_count=len(schedules), status="success")
     logger.info(f"Retrieved {len(schedules)} email schedules")
     return schedules
+
+
+# -------------------- Trigger Email Sending --------------------
+@router.post("/emails/process-now")
+def trigger_email_processing(request: Request, db: Session = Depends(get_db)):
+    add_log_context(request, operation="process_now")
+    processed_count, processed = process_scheduled_emails(db)
+    add_log_context(request, processed_count=processed_count)
+    return {"processed_count": processed_count, "processed": processed}
+
+
+# -------------------- Campaign Stats --------------------
+@router.get("/campaigns/{campaign_id}/stats")
+def campaign_stats(request: Request, campaign_id: int, db: Session = Depends(get_db)):
+    add_log_context(request, operation="campaign_stats", campaign_id=campaign_id)
+    campaign = db.query(models.Campaign).filter(models.Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    # Emails sent = count of email_logs with status sent for this campaign
+    emails_sent = db.query(func.count(models.EmailLog.id)).filter(
+        models.EmailLog.campaign_id == campaign_id,
+        models.EmailLog.status == "sent"
+    ).scalar() or 0
+
+    # Derive recipients from campaign or fallback to live count of contacts
+    recipients = campaign.recipient_count or 0
+    if recipients == 0:
+        try:
+            recipients = db.query(func.count(models.Contact.id)).filter(models.Contact.campaign_id == campaign_id).scalar() or 0
+        except Exception:
+            recipients = 0
+    opens = campaign.open_count or 0
+    clicks = campaign.click_count or 0
+    unsubscribes = campaign.unsubscribe_count or 0
+
+    open_rate = (opens / recipients * 100.0) if recipients else 0.0
+    click_rate = (clicks / recipients * 100.0) if recipients else 0.0
+
+    return {
+        "campaign_id": campaign_id,
+        "emails_sent": emails_sent,
+        "recipients": recipients,
+        "opens": opens,
+        "clicks": clicks,
+        "unsubscribed": unsubscribes,
+        "open_rate": round(open_rate, 2),
+        "click_rate": round(click_rate, 2)
+    }

@@ -120,10 +120,74 @@ class TemplateGenerator:
         Returns:
             Sample email text or fallback template if not found
         """
-        # Always return empty - we want the LLM to generate the complete email from scratch
-        # without any reference to existing templates
-        logger.info(f"Forcing complete email generation from scratch for {scenario} step {step}")
-        return ""
+        # Log the scenario for debugging
+        logger.info(f"Loading sample email for scenario: {scenario}, step: {step}")
+        
+        # Ensure scenario is a string and normalize it
+        scenario_str = str(scenario).lower() if scenario else "cold_outreach"
+        logger.info(f"Normalized scenario: {scenario_str}")
+        
+        # Force conference scenario if it contains "conference" or "in person"
+        if "conference" in scenario_str or "in person" in scenario_str or "in-person" in scenario_str:
+            scenario_str = "conference"
+            logger.info(f"Forcing conference scenario based on keywords in: {scenario}")
+        
+        # Determine file path based on scenario and step
+        if scenario_str == "conference":
+            # For conference/in-person scenario, use the correct file name from the conference folder
+            if step == 1:
+                file_name = "initail_email.md"  # This matches the actual file name in the conference folder
+            else:
+                file_name = f"followup{step-1}.md"
+            logger.info(f"Using conference sample email: {file_name}")
+        else:
+            # For other scenarios (default to cold_outreach)
+            step_name = "initial_email" if step == 1 else f"followup{step-1}"
+            file_name = f"{step_name}.md"
+            # If not a recognized scenario, use cold_outreach
+            if scenario_str not in ["cold_outreach", "follow_up", "product_update", "webinar_invitation", "case_study"]:
+                scenario_str = "cold_outreach"
+                logger.info(f"Using default 'cold_outreach' scenario for unrecognized scenario: {scenario}")
+        
+        # Check if the conference folder exists
+        conference_dir = SAMPLES_DIR / "conference"
+        if not conference_dir.exists():
+            logger.error(f"Conference samples directory does not exist: {conference_dir}")
+            # List all available sample directories
+            available_dirs = [d.name for d in SAMPLES_DIR.iterdir() if d.is_dir()]
+            logger.info(f"Available sample directories: {available_dirs}")
+        else:
+            # List all files in the conference directory for debugging
+            conference_files = [f.name for f in conference_dir.iterdir() if f.is_file()]
+            logger.info(f"Files in conference directory: {conference_files}")
+        
+        sample_path = SAMPLES_DIR / scenario_str / file_name
+        logger.info(f"Looking for sample email at: {sample_path}")
+        
+        try:
+            if sample_path.exists():
+                with open(sample_path, 'r') as f:
+                    sample_content = f.read().strip()
+                logger.info(f"Loaded sample email from {sample_path}")
+                
+                # For conference scenario, add a note about using the venue information
+                if scenario_str == "conference":
+                    sample_content += "\n\nNOTE: When using this template, replace any generic venue references with the specific venue provided in the campaign description. Make sure to use the exact venue name and highlight it in bold."
+                
+                return sample_content
+            else:
+                logger.warning(f"Sample email not found at {sample_path}")
+                # For conference scenario, don't provide fallback - only use .md files from conference folder
+                if scenario_str == "conference":
+                    logger.error(f"No fallback for conference emails. Must use .md files from conference folder.")
+                    raise FileNotFoundError(f"Required conference email template not found: {sample_path}")
+                return ""
+        except Exception as e:
+            logger.error(f"Error loading sample email: {str(e)}")
+            if scenario_str == "conference":
+                # Re-raise the exception for conference scenario to prevent fallback
+                raise
+            return ""
     
     def infer_campaign_scenario(self, description: str) -> str:
         """
@@ -135,53 +199,81 @@ class TemplateGenerator:
         Returns:
             Inferred scenario (one of CAMPAIGN_SCENARIOS values)
         """
-        if not self.use_llm or not description:
-            # Default to cold outreach if LLM not available
-            logger.info("Using default scenario (cold_outreach)")
+        # If the description is already a valid scenario, return it directly
+        if description and description.lower() in [s.lower() for s in CAMPAIGN_SCENARIOS.values()]:
+            logger.info(f"Using provided scenario: {description}")
+            return description.lower()
+            
+        if not description:
+            logger.info("No description provided, using default scenario (cold_outreach)")
             return CAMPAIGN_SCENARIOS["COLD_OUTREACH"]
+            
+        # First, try to infer from keywords without using LLM
+        description_lower = description.lower()
         
-        try:
-            # Create prompt for scenario inference
-            prompt = f"""
-            You are an AI assistant that categorizes email campaign descriptions into predefined scenarios.
-            Please categorize the following campaign description into one of these scenarios:
-            - cold_outreach: Initial contact with potential clients
-            - conference: Follow-up after meeting at an event
-            - follow_up: Following up on a previous conversation
-            - product_update: Announcing new features or products
-            - webinar_invitation: Inviting to an online event
-            - case_study: Sharing success stories
+        # Check for conference/in-person keywords
+        conference_keywords = ["conference", "event", "summit", "expo", "convention", "meeting", "symposium",
+                              "forum", "in person", "in-person", "face to face", "face-to-face", "coffee", "lunch"]
+        if any(keyword in description_lower for keyword in conference_keywords):
+            logger.info(f"Inferred conference scenario from keywords in description: {description}")
+            return CAMPAIGN_SCENARIOS["CONFERENCE"]
             
-            Campaign description: "{description}"
+        # Check for follow-up keywords
+        followup_keywords = ["follow up", "follow-up", "following up", "touched base", "reconnect", "checking in"]
+        if any(keyword in description_lower for keyword in followup_keywords):
+            logger.info(f"Inferred follow-up scenario from keywords in description: {description}")
+            return CAMPAIGN_SCENARIOS["FOLLOW_UP"]
             
-            Output only the scenario name without any explanation or additional text.
-            """
-            
-            # Call OpenAI API with new client interface
-            client = openai.OpenAI(api_key=self.openai_api_key)
-            response = client.completions.create(
-                model="gpt-3.5-turbo-instruct",
-                prompt=prompt,
-                max_tokens=10,
-                temperature=0.3
-            )
-            
-            # Extract the response text (updated for new client interface)
-            result = response.choices[0].text.strip().lower()
-            
-            # Validate against known scenarios
-            for scenario_value in CAMPAIGN_SCENARIOS.values():
-                if scenario_value in result:
-                    logger.info(f"Inferred scenario: {scenario_value} from description")
-                    return scenario_value
-            
-            # Default to cold_outreach if no match
-            logger.warning(f"Could not infer scenario from description. Using default. LLM response: {result}")
-            return CAMPAIGN_SCENARIOS["COLD_OUTREACH"]
-            
-        except Exception as e:
-            logger.error(f"Error inferring campaign scenario: {str(e)}")
-            return CAMPAIGN_SCENARIOS["COLD_OUTREACH"]
+        # If no keywords matched and LLM is available, use it
+        if self.use_llm:
+            try:
+                # Create prompt for scenario inference
+                prompt = f"""
+                You are an assistant that categorizes email campaign descriptions into predefined scenarios.
+                Please categorize the following campaign description into one of these scenarios:
+                - cold_outreach: Initial contact with potential clients
+                - conference: Follow-up after meeting at an event or any in-person meeting
+                - follow_up: Following up on a previous conversation
+                - product_update: Announcing new features or products
+                - webinar_invitation: Inviting to an online event
+                - case_study: Sharing success stories
+                
+                Campaign description: "{description}"
+                
+                Output only the scenario name without any explanation or additional text.
+                """
+                
+                # Call OpenAI API with new client interface
+                client = openai.OpenAI(api_key=self.openai_api_key)
+                response = client.completions.create(
+                    model="gpt-3.5-turbo-instruct",
+                    prompt=prompt,
+                    max_tokens=10,
+                    temperature=0.3
+                )
+                
+                # Extract the response text (updated for new client interface)
+                result = response.choices[0].text.strip().lower()
+                
+                # Log the result
+                logger.info(f"LLM inference result: {result}")
+                
+                # Validate against known scenarios
+                for scenario_value in CAMPAIGN_SCENARIOS.values():
+                    if scenario_value in result:
+                        logger.info(f"Inferred scenario: {scenario_value} from description")
+                        return scenario_value
+                
+                # Default to cold_outreach if no match
+                logger.warning(f"Could not infer scenario from description. Using default. LLM response: {result}")
+                return CAMPAIGN_SCENARIOS["COLD_OUTREACH"]
+            except Exception as e:
+                logger.error(f"Error inferring campaign scenario with LLM: {str(e)}")
+                return CAMPAIGN_SCENARIOS["COLD_OUTREACH"]
+        
+        # Default to cold_outreach if no LLM and no keyword match
+        logger.info("No LLM available and no keyword match, using default scenario (cold_outreach)")
+        return CAMPAIGN_SCENARIOS["COLD_OUTREACH"]
     
     def generate_template_for_category(
         self,
@@ -201,80 +293,65 @@ class TemplateGenerator:
         Returns:
             Dictionary with subject and body
         """
-        # Don't load any sample email - force completely new generation
-        sample_email = ""
+        # Log the input parameters for debugging
+        logger.info(f"Generating template for category: {category}, scenario: {scenario}, step: {step}")
+        
+        # Normalize scenario to ensure it's one of our supported types
+        scenario_str = str(scenario).lower() if scenario else "cold_outreach"
+        logger.info(f"Normalized scenario: {scenario_str}")
+        
+        # Force conference scenario if it contains "conference" or "in person"
+        if "conference" in scenario_str or "in person" in scenario_str or "in-person" in scenario_str:
+            scenario_str = "conference"
+            logger.info(f"Forcing conference scenario based on keywords in: {scenario}")
+            
+        # Log additional context if provided
+        if additional_context:
+            venue = additional_context.get("venue") or additional_context.get("meeting_location")
+            if venue and scenario_str == "conference":
+                logger.info(f"Using venue for conference scenario: {venue}")
+        
+        try:
+            # Load sample email based on scenario and step
+            sample_email = self._load_sample_email(scenario_str, step)
+        except FileNotFoundError as e:
+            # For conference scenario, we don't allow fallback
+            if scenario_str == "conference":
+                logger.error(f"Cannot generate template for conference scenario: {str(e)}")
+                raise RuntimeError(f"Conference email templates must use .md files from conference folder. {str(e)}")
+            sample_email = ""
         
         if not self.use_llm:
             # No fallback – enforce LLM-only generation
             raise RuntimeError("LLM unavailable: template generation requires OPENAI_API_KEY and openai package.")
-            
-        # Add randomization based on current time and category
-        seed = f"{category}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')}"
         
         try:
+            # Add randomization based on current time and category
+            seed = f"{category}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+            
             # Prepare prompt variables
             day_of_week = datetime.datetime.now().strftime("%A")
             
-            # Get placeholder info for the category
-            category_info = {
-                "Clinical / Pharmacy": {
-                    "first_name": "John",
-                    "company_name": "MedPharm Solutions",
-                    "designation": "Clinical Operations Director",
-                    "industry": "Healthcare"
-                },
-                "IT / Technology": {
-                    "first_name": "Sarah",
-                    "company_name": "TechSystems Inc",
-                    "designation": "IT Director",
-                    "industry": "Technology"
-                },
-                "R&D / Data": {
-                    "first_name": "Michael",
-                    "company_name": "DataScience Health",
-                    "designation": "Research Lead",
-                    "industry": "Healthcare Analytics"
-                },
-                "Operations": {
-                    "first_name": "Jennifer",
-                    "company_name": "OptiCare Health",
-                    "designation": "Operations Manager",
-                    "industry": "Healthcare"
-                },
-                "Sales / Partnerships": {
-                    "first_name": "David",
-                    "company_name": "HealthPartners Inc",
-                    "designation": "Business Development Director",
-                    "industry": "Healthcare Services"
-                },
-                "Executive": {
-                    "first_name": "Lisa",
-                    "company_name": "ExecHealth Systems",
-                    "designation": "Chief Medical Officer",
-                    "industry": "Healthcare Technology"
-                },
-                "Other": {
-                    "first_name": "Robert",
-                    "company_name": "Innovate Health",
-                    "designation": "Program Manager",
-                    "industry": "Healthcare"
-                }
+            # Use dynamic placeholders that will be replaced with actual data
+            placeholders = {
+                "first_name": "{{first_name}}",  # Will be replaced with actual first name from Excel
+                "company_name": "{{company_name}}",  # Will be replaced with actual company from Excel
+                "designation": "{{designation}}",  # Will be replaced with actual designation from Excel
+                "industry": "{{industry}}"  # Will be replaced with actual industry from Excel
             }
             
-            # Get the right placeholders for the category
-            placeholders = category_info.get(category, category_info["Other"])
-            
-            # Replace placeholders in the prompt template
-            prompt = self.email_prompt_template.replace("{{first_name}}", placeholders["first_name"])
-            prompt = prompt.replace("{{company_name}}", placeholders["company_name"])
-            prompt = prompt.replace("{{designation}}", placeholders["designation"])
-            prompt = prompt.replace("{{industry}}", placeholders["industry"])
+            # Keep the placeholders in the prompt template as is
+            prompt = self.email_prompt_template
             prompt = prompt.replace("{{scenario}}", scenario)
             prompt = prompt.replace("{{day_of_week}}", day_of_week)
             prompt = prompt.replace("{{campaign_name}}", f"{category} {scenario.capitalize()}")
             prompt = prompt.replace("{{step}}", str(step))
             prompt = prompt.replace("{{neutrino_summary}}", self.company_summary)
             prompt = prompt.replace("{{sample_email}}", sample_email)
+            
+            # Add a note about using actual data
+            prompt += "\n\nCRITICAL: The placeholders {{first_name}}, {{company_name}}, etc. will be replaced with ACTUAL data from the Excel file during personalization. DO NOT use generic names or companies in your template."
+            
             # Add additional context to the prompt if provided
             if additional_context:
                 context_str = "\nAdditional Context for Personalization:\n"
@@ -318,8 +395,6 @@ class TemplateGenerator:
                 prompt += "4. Make this email distinctly different from emails to other categories\n"
                 prompt += "5. Don't mention specific contact names, but do reference their roles and industries\n"
             
-            # Do not append external format template – rely solely on email_prompt.md
-            
             # Add multiple sources of randomization
             current_time = datetime.datetime.now()
             microseconds = current_time.microsecond
@@ -347,15 +422,15 @@ class TemplateGenerator:
             elif "Executive" in category:
                 category_for_model = "executive"
             
-            # Different system prompts for each category
+            # Different system prompts for each category - ensuring completely human tone
             system_prompts = {
-                "clinical": "You are an expert healthcare copywriter who specializes in clinical communications. Create an email that speaks directly to healthcare professionals with medical terminology and evidence-based language. Never use generic templates or standard openings like 'As a [title]'.",
-                "it": "You are a technical copywriter for IT professionals. Write with precision about systems, integrations, and technical benefits. Use IT-specific language and avoid all standard email templates and phrases.",
-                "rd": "You are a specialized research communications expert. Your emails focus on data, innovation, and scientific advancement. Craft a message that researchers will find compelling and unique.",
-                "operations": "You are an operations efficiency expert who communicates with clear, practical language about process improvements. Create a completely original email focused on operational excellence.",
-                "sales": "You are a top sales copywriter who creates high-converting emails without templates. Write with persuasive, results-focused language that stands out from typical sales emails.",
-                "executive": "You are an executive communications specialist. Create a strategic, high-level message appropriate for C-suite leaders. Your email must be completely unique in structure and content.",
-                "default": "You are a world-class email copywriter who creates completely original B2B emails from scratch. You never use templates or standard structures."
+                "clinical": "You are Bella Taylor, Senior Client Partner at Neutrino Tech Systems. Write a completely human, personalized email to a healthcare professional. Use medical terminology and evidence-based language. Use <b>bold</b> for important terms. Never use emojis. Never mention AI or use phrases that sound automated. Write as if you're a real person sending a normal business email.",
+                "it": "You are Bella Taylor, Senior Client Partner at Neutrino Tech Systems. Write a completely human, personalized email to an IT professional. Use technical language about systems and integrations. Use <b>bold</b> for important terms. Never use emojis. Never mention AI or use phrases that sound automated. Write as if you're a real person sending a normal business email.",
+                "rd": "You are Bella Taylor, Senior Client Partner at Neutrino Tech Systems. Write a completely human, personalized email to a research professional. Focus on data, innovation, and scientific advancement. Use <b>bold</b> for important terms. Never use emojis. Never mention AI or use phrases that sound automated. Write as if you're a real person sending a normal business email.",
+                "operations": "You are Bella Taylor, Senior Client Partner at Neutrino Tech Systems. Write a completely human, personalized email to an operations professional. Use clear, practical language about process improvements. Use <b>bold</b> for important terms. Never use emojis. Never mention AI or use phrases that sound automated. Write as if you're a real person sending a normal business email.",
+                "sales": "You are Bella Taylor, Senior Client Partner at Neutrino Tech Systems. Write a completely human, personalized email to a sales professional. Use persuasive, results-focused language. Use <b>bold</b> for important terms. Never use emojis. Never mention AI or use phrases that sound automated. Write as if you're a real person sending a normal business email.",
+                "executive": "You are Bella Taylor, Senior Client Partner at Neutrino Tech Systems. Write a completely human, personalized email to a C-suite executive. Create a strategic, high-level message. Use <b>bold</b> for important terms. Never use emojis. Never mention AI or use phrases that sound automated. Write as if you're a real person sending a normal business email.",
+                "default": "You are Bella Taylor, Senior Client Partner at Neutrino Tech Systems. Write a completely human, personalized email. Use <b>bold</b> for important terms. Never use emojis. Never mention AI or use phrases that sound automated. Write as if you're a real person sending a normal business email to a specific individual."
             }
             
             # Use different model based on category to maximize variation
@@ -381,14 +456,37 @@ class TemplateGenerator:
                 "default": base_temp
             }
             
+            # Add instructions for HTML formatting
+            prompt += "\n\nHTML FORMATTING REQUIREMENTS:\n"
+            prompt += "1. Use <b>bold text</b> for important terms, company names, and key points\n"
+            prompt += "2. Use proper HTML bullet points with <ul> and <li> tags for lists\n"
+            prompt += "3. Structure the email with clear paragraphs\n"
+            prompt += "4. Ensure all HTML tags are properly closed\n"
+            prompt += "5. Make the email visually appealing with proper formatting\n"
+            
             # Call OpenAI API with new client interface and category-specific parameters
             client = openai.OpenAI(api_key=self.openai_api_key)
+            # Prepare conference-specific instructions if this is a conference scenario
+            conference_instructions = ""
+            if scenario == "conference":
+                venue = additional_context.get("venue") or additional_context.get("meeting_location") or "the conference"
+                conference_instructions = f"""
+                CONFERENCE/IN-PERSON MEETING INSTRUCTIONS:
+                1. This is an in-person meeting email for a meeting at: <b>{venue}</b>
+                2. Use the venue '{venue}' as the specific location for the meeting
+                3. Mention this venue/location prominently in the email
+                4. Suggest a specific meeting time and place within or near {venue}
+                5. Make the CTA about meeting in person at this specific venue
+                6. Bold the venue name and meeting details
+                """
+                logger.info(f"Added conference-specific instructions for venue: {venue}")
+            
             response = client.chat.completions.create(
                 model=model_selection.get(category_for_model, "gpt-4o"),
                 messages=[
                     {"role": "system", "content": system_prompts.get(category_for_model, system_prompts["default"])},
-                    {"role": "user", "content": f"Create a completely original email for {category} professionals. DO NOT use any standard templates, phrases like 'As a [title]', or formulaic approaches."},
-                    {"role": "user", "content": prompt + f"\n\nIMPORTANT: This is email #{microsecond} in sequence {category_for_model}. Make it completely different from any other email."}
+                    {"role": "user", "content": f"Write a completely human, personalized email for {category} professionals. Use proper HTML formatting with <b>bold</b> for emphasis and <ul><li>bullet points</li></ul> for lists. NEVER mention AI, algorithms, or anything that sounds automated. Write as if you're a real person sending an individual email."},
+                    {"role": "user", "content": prompt + conference_instructions + f"\n\nIMPORTANT REQUIREMENTS:\n1. This is email #{microsecond} in sequence {category_for_model}. Make it completely different from any other email.\n2. Use actual data from the contact information in your personalization.\n3. NEVER use 'AI', 'assistant', 'algorithm', or any terms that suggest automation.\n4. Write in a completely human, conversational tone as if you're a real person writing directly to this individual.\n5. DO NOT include meta-statements like 'This message was crafted uniquely for you' or 'as part of our focus on personalization' or any similar phrases that draw attention to the personalization process.\n6. Just write a normal business email as one human would write to another - don't comment on the email itself.\n7. NEVER use emojis or emoticons in the email.\n8. Use <b>bold text</b> for important terms, company names, key points, and meeting details.\n9. For conference/in-person scenarios, include specific details about the venue and suggest meeting over coffee or at a specific location within the venue.\n10. If this is a conference/in-person email, the CTA should specifically suggest a 'quick chat over coffee' at the specific venue mentioned."}
                 ],
                 temperature=temperature_selection.get(category_for_model, 1.0),
                 max_tokens=1500,  # Larger token limit for more creative space
@@ -396,7 +494,7 @@ class TemplateGenerator:
                 presence_penalty=0.7 + (microsecond % 30) / 100   # 0.7-0.99 range
             )
             
-            # Extract the response JSON (updated for new client interface)
+            # Extract the response text
             result_text = response.choices[0].message.content.strip()
             
             # Try to parse JSON from the response
@@ -421,6 +519,26 @@ class TemplateGenerator:
                         "body": body.strip(),
                         "cta": ""
                     }
+                
+                # Combine parts for the final template
+                subject = result.get("subject", f"Neutrino: {scenario.capitalize()} for {category}")
+                
+                # Assemble the full body
+                body_parts = []
+                if result.get("intro"):
+                    body_parts.append(result["intro"])
+                if result.get("body"):
+                    body_parts.append(result["body"])
+                if result.get("cta"):
+                    body_parts.append(result["cta"])
+                
+                body = "\n\n".join(body_parts)
+                
+                return {
+                    "subject": subject,
+                    "body": body
+                }
+            
             except Exception as json_error:
                 logger.error(f"Failed to parse JSON from LLM response: {str(json_error)}")
                 # Fall back to simple parsing
@@ -428,71 +546,56 @@ class TemplateGenerator:
                 subject = next((p for p in parts if p.startswith("Subject:") or p.lower().startswith("subject:")), "")
                 body = "\n\n".join(p for p in parts if not (p.startswith("Subject:") or p.lower().startswith("subject:")))
                 
-                result = {
+                return {
                     "subject": subject.replace("Subject:", "").strip(),
-                    "intro": "",
-                    "body": body.strip(),
-                    "cta": ""
+                    "body": body.strip()
                 }
-            
-            # Combine parts for the final template
-            subject = result.get("subject", f"Neutrino: {scenario.capitalize()} for {category}")
-            
-            # Assemble the full body
-            body_parts = []
-            if result.get("intro"):
-                body_parts.append(result["intro"])
-            if result.get("body"):
-                body_parts.append(result["body"])
-            if result.get("cta"):
-                body_parts.append(result["cta"])
-            
-            body = "\n\n".join(body_parts)
-            
-            return {
-                "subject": subject,
-                "body": body
-            }
-            
+                
         except Exception as e:
             logger.error(f"Error generating template for category {category}: {str(e)}")
-            # No fallback – propagate error to caller
             raise
-    # Removed fallback template generator – generation is LLM-only
-    
-    def personalize_template(
-        self,
-        template: Dict[str, str],
-        contact_data: Dict[str, Any]
-    ) -> Dict[str, str]:
+            
+    def personalize_template(self, template: Dict[str, str], contact_data: Dict[str, str]) -> Dict[str, str]:
         """
-        Personalize a template for a specific contact.
+        Personalize an email template with contact data.
         
         Args:
-            template: Template with subject and body
-            contact_data: Contact information (name, company, etc.)
+            template: Dictionary with subject and body
+            contact_data: Dictionary with contact data for personalization
             
         Returns:
             Dictionary with personalized subject and body
         """
-        subject = template["subject"]
-        body = template["body"]
+        logger.info(f"Personalizing template with contact data: {contact_data}")
         
-        # Replace placeholders with contact data
+        # Make copies to avoid modifying the originals
+        personalized_subject = template["subject"]
+        personalized_body = template["body"]
+        
+        # Replace placeholders in subject and body
         for key, value in contact_data.items():
-            if value and isinstance(value, str):
-                placeholder = "{{" + key + "}}"
-                subject = subject.replace(placeholder, value)
-                body = body.replace(placeholder, value)
+            placeholder = "{{" + key + "}}"
+            personalized_subject = personalized_subject.replace(placeholder, str(value))
+            personalized_body = personalized_body.replace(placeholder, str(value))
         
-        # Handle any remaining placeholders
-        import re
-        subject = re.sub(r'\{\{[^}]+\}\}', '', subject)
-        body = re.sub(r'\{\{[^}]+\}\}', '', body)
+        # Ensure HTML formatting is preserved
+        # Make sure <b> tags are properly closed
+        if "<b>" in personalized_body and "</b>" not in personalized_body:
+            personalized_body = personalized_body.replace("<b>", "<b>").replace("</b>", "</b>")
+            
+        # Make sure <ul> and <li> tags are properly closed
+        if "<ul>" in personalized_body and "</ul>" not in personalized_body:
+            personalized_body = personalized_body.replace("<ul>", "<ul>").replace("</ul>", "</ul>")
+        if "<li>" in personalized_body and "</li>" not in personalized_body:
+            personalized_body = personalized_body.replace("<li>", "<li>").replace("</li>", "</li>")
+            
+        # Log the personalized template
+        logger.info(f"Personalized subject: {personalized_subject}")
+        logger.info(f"Personalized body (first 100 chars): {personalized_body[:100]}...")
         
         return {
-            "subject": subject,
-            "body": body
+            "subject": personalized_subject,
+            "body": personalized_body
         }
 
 def generate_templates_for_campaign(

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, ExternalLink, Trash2 } from 'lucide-react';
 
 const ContactsPage = () => {
   const [contacts, setContacts] = useState([]);
@@ -17,6 +17,7 @@ const ContactsPage = () => {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [deletingId, setDeletingId] = useState(null);
 
   // Debounce search term
   useEffect(() => {
@@ -121,6 +122,21 @@ const ContactsPage = () => {
   const totalPages = Math.ceil(totalContacts / pageSize);
   const startRecord = (currentPage - 1) * pageSize + 1;
   const endRecord = Math.min(currentPage * pageSize, totalContacts);
+
+  const deleteContact = async (contactId) => {
+    if (!window.confirm('Are you sure you want to delete this contact?')) return;
+    try {
+      setDeletingId(contactId);
+      const res = await fetch(`/api/contacts/${contactId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete contact');
+      setContacts(prev => prev.filter(c => c.id !== contactId));
+      setTotalContacts(prev => Math.max(0, prev - 1));
+    } catch (e) {
+      alert('Failed to delete contact');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="px-4 py-4 w-full">
@@ -231,6 +247,9 @@ const ContactsPage = () => {
                   <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-24 bg-green-100 rounded-tr-xl">
                     Status
                   </th>
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-16 bg-green-100 rounded-tr-xl">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -285,6 +304,16 @@ const ContactsPage = () => {
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                       {contact.status || '-'}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                      <button
+                        className="p-1 rounded hover:bg-red-50"
+                        title="Delete contact"
+                        onClick={() => deleteContact(contact.id)}
+                        disabled={deletingId === contact.id}
+                      >
+                        <Trash2 className={`w-4 h-4 ${deletingId === contact.id ? 'text-gray-400' : 'text-red-600'}`} />
+                      </button>
                     </td>
                   </tr>
                 ))}

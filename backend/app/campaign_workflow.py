@@ -190,11 +190,21 @@ class CampaignWorkflow:
         
         for _, row in df.iterrows():
             try:
-                # Extract extra data
+                # Extract extra data and ensure all Excel data is captured
                 extra_data = {}
+                
+                # First, log all columns to help with debugging
+                logger.info(f"Excel columns: {list(df.columns)}")
+                
                 for col in df.columns:
-                    if col not in column_mapping.values() and pd.notna(row[col]):
-                        extra_data[col] = str(row[col])
+                    # Include all columns as extra data, even standard ones
+                    # This ensures all Excel data is available for personalization
+                    if pd.notna(row[col]):
+                        # Convert column name to a valid key format
+                        key = col.lower().replace(' ', '_').replace('-', '_')
+                        value = str(row[col])
+                        extra_data[key] = value
+                        logger.info(f"Extracted {key}: {value}")
                 
                 # Create contact object
                 contact = models.Contact(
@@ -362,19 +372,102 @@ class CampaignWorkflow:
                     logger.warning(f"No initial template found for category {category}")
                     continue
                 
-                # Create contact data for personalization
+                # Log the contact data for debugging
+                logger.info(f"Contact: {contact.name}, {contact.email}, {contact.company}")
+                logger.info(f"Contact extra_data: {contact.extra_data}")
+                
+                # Extract first name properly from the full name or from extra_data if available
+                first_name = ""
+                if contact.extra_data and "first_name" in contact.extra_data:
+                    # Use first name directly from Excel if available
+                    first_name = contact.extra_data["first_name"]
+                    logger.info(f"Using first_name from extra_data: {first_name}")
+                elif contact.name:
+                    # Otherwise extract from full name
+                    first_name = contact.name.split()[0]
+                    logger.info(f"Extracted first_name from full name: {first_name}")
+                
+                # Extract company name from extra_data if available
+                company_name = ""
+                if contact.extra_data and "company_name" in contact.extra_data:
+                    company_name = contact.extra_data["company_name"]
+                    logger.info(f"Using company_name from extra_data: {company_name}")
+                elif contact.company:
+                    company_name = contact.company
+                    logger.info(f"Using company from contact: {company_name}")
+                
                 contact_data = {
-                    "first_name": contact.name.split()[0] if contact.name else "",
+                    "first_name": first_name,
                     "name": contact.name,
                     "email": contact.email,
-                    "company": contact.company or "",
+                    "company": company_name,  # Use the extracted company name
+                    "company_name": company_name,  # Use the extracted company name
                     "designation": contact.designation or "",
                     "industry": contact.industry or ""
                 }
                 
-                # Add extra data if available
+                # Log the final contact_data for debugging
+                logger.info(f"Final contact_data: {contact_data}")
+                
+                # Add location data if available
+                if contact.extra_data and "city" in contact.extra_data:
+                    contact_data["POC City"] = contact.extra_data["city"]
+                if contact.extra_data and "state" in contact.extra_data:
+                    contact_data["POC State"] = contact.extra_data["state"]
+                
+                # Add LinkedIn handle if available
+                if contact.extra_data and "linkedin" in contact.extra_data:
+                    contact_data["POC LinkedIn Handle"] = contact.extra_data["linkedin"]
+                elif contact.linkedin_url:
+                    contact_data["POC LinkedIn Handle"] = contact.linkedin_url
+                
+                # Add extra data if available - ensure all Excel data is included
                 if contact.extra_data:
-                    contact_data.update(contact.extra_data)
+                    # Log all extra data for debugging
+                    logger.info(f"Adding extra data to contact_data: {contact.extra_data}")
+                    
+                    # Add all extra data with both original keys and normalized keys
+                    for key, value in contact.extra_data.items():
+                        # Add with original key
+                        contact_data[key] = value
+                        
+                        # Also add with normalized key (lowercase, underscores)
+                        normalized_key = key.lower().replace(' ', '_')
+                        if normalized_key != key:
+                            contact_data[normalized_key] = value
+                            
+                        # Also add with spaces instead of underscores
+                        spaced_key = key.replace('_', ' ')
+                        if spaced_key != key:
+                            contact_data[spaced_key] = value
+                
+                # Add conference/meeting details for in-person scenarios
+                # Check both "conference" and if the description contains conference-related keywords
+                is_conference = campaign.scenario == "conference"
+                if not is_conference and campaign.description:
+                    # Try to infer if this is a conference/in-person meeting from the description
+                    conference_keywords = ["conference", "event", "summit", "expo", "convention", "meeting", "symposium", "forum", "in person", "in-person", "face to face", "face-to-face"]
+                    if any(keyword in campaign.description.lower() for keyword in conference_keywords):
+                        is_conference = True
+                        # Update the campaign scenario if needed
+                        if campaign.scenario != "conference":
+                            logger.info(f"Inferred conference/in-person scenario from description: {campaign.description}")
+                            campaign.scenario = "conference"
+                            self.db.commit()
+                
+                if is_conference:
+                    # Try to extract conference details from campaign description
+                    conference_details = self._extract_conference_details(campaign.description)
+                    
+                    # Add conference details to contact data
+                    for key, value in conference_details.items():
+                        contact_data[key] = value
+                    
+                    # Log that we're using conference details
+                    logger.info(f"Using conference details for campaign: {campaign.name}")
+                        
+                    # Log conference details
+                    logger.info(f"Added conference details to contact_data: {conference_details}")
                 
                 # Personalize template
                 personalized = self.template_generator.personalize_template(
@@ -607,19 +700,85 @@ class CampaignWorkflow:
                         'first_name': first_name,
                         'last_name': last_name,
                         'email': email.recipient_email,
-                        'category': email.recipient_category or "Other",
+                        'category': email.recipient_category,
                         'subject': email.subject,
                         'body': email.body,
                         'send_date': send_date.isoformat() if send_date else "",
                         'step': email.step
                     })
             
-            logger.info(f"Exported campaign {campaign_id} to {csv_path}")
             return str(csv_path)
             
         except Exception as e:
             logger.error(f"Error exporting campaign to CSV: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error exporting campaign: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error exporting campaign to CSV: {str(e)}")
+    
+    def _extract_conference_details(self, description: str) -> Dict[str, str]:
+        """
+        Extract conference details from campaign description.
+        
+        Args:
+            description: Campaign description
+            
+        Returns:
+            Dictionary with conference details
+        """
+        # Default values
+        conference_details = {
+            "conference_name": "the upcoming conference",
+            "conference_location": "your location",
+            "conference_dates": "the scheduled dates",
+            "meeting_venue": "a nearby coffee shop"
+        }
+        
+        if not description:
+            return conference_details
+            
+        # Try to extract conference name
+        import re
+        
+        # Look for conference/event name patterns
+        name_patterns = [
+            r'(?:at|for|during|the)\s+([A-Z][A-Za-z\s]+(?:Conference|Summit|Expo|Convention|Meeting|Symposium|Forum))',
+            r'([A-Z][A-Za-z\s]+(?:Conference|Summit|Expo|Convention|Meeting|Symposium|Forum))',
+            r'(?:at|for|during|the)\s+([A-Z][A-Za-z\s\d]+)'
+        ]
+        
+        for pattern in name_patterns:
+            match = re.search(pattern, description)
+            if match:
+                conference_details["conference_name"] = match.group(1).strip()
+                break
+                
+        # Look for location patterns
+        location_patterns = [
+            r'(?:in|at|near)\s+([A-Z][A-Za-z\s]+,\s+[A-Z]{2})',
+            r'(?:in|at|near)\s+([A-Z][A-Za-z\s]+)'
+        ]
+        
+        for pattern in location_patterns:
+            match = re.search(pattern, description)
+            if match:
+                conference_details["conference_location"] = match.group(1).strip()
+                break
+                
+        # Look for date patterns
+        date_patterns = [
+            r'(?:on|from|during)\s+([A-Z][a-z]+\s+\d{1,2}(?:st|nd|rd|th)?(?:\s*-\s*\d{1,2}(?:st|nd|rd|th)?)?(?:,\s+\d{4})?)',
+            r'([A-Z][a-z]+\s+\d{1,2}(?:st|nd|rd|th)?(?:\s*-\s*\d{1,2}(?:st|nd|rd|th)?)?(?:,\s+\d{4})?)'
+        ]
+        
+        for pattern in date_patterns:
+            match = re.search(pattern, description)
+            if match:
+                conference_details["conference_dates"] = match.group(1).strip()
+                break
+                
+        # Suggest a meeting venue based on location
+        if conference_details["conference_location"] != "your location":
+            conference_details["meeting_venue"] = f"a coffee shop near {conference_details['conference_location']}"
+        
+        return conference_details
     
     async def run_full_workflow(
         self,
@@ -631,45 +790,35 @@ class CampaignWorkflow:
         Run the full campaign workflow from creation to scheduling.
         
         Args:
-            campaign_data: Campaign data
+            campaign_data: Campaign data from API
             file: Uploaded contacts file
             owner_id: Optional owner ID
             
         Returns:
             Dictionary with workflow results
         """
-        try:
-            # Step 1: Create campaign
-            campaign = await self.create_campaign(campaign_data, owner_id)
-            
-            # Step 2: Process contacts file
-            contacts_result = await self.process_contacts_file(campaign.id, file)
-            
-            # Step 3: Generate templates
-            templates_result = await self.generate_templates(campaign.id)
-            
-            # Step 4: Personalize emails
-            personalize_result = await self.personalize_emails(campaign.id)
-            
-            # Step 5: Schedule campaign
-            schedule_result = await self.schedule_campaign(campaign.id, campaign_data.start_date)
-            
-            # Step 6: Export to CSV
-            csv_path = await self.export_campaign_to_csv(campaign.id)
-            
-            # Return combined results
-            return {
-                "success": True,
-                "campaign_id": campaign.id,
-                "campaign_name": campaign.name,
-                "contacts_imported": contacts_result["imported_count"],
-                "templates_created": templates_result["templates_created"],
-                "emails_personalized": personalize_result["personalized_count"],
-                "emails_scheduled": schedule_result["scheduled_count"],
-                "start_date": schedule_result["start_date"],
-                "export_path": csv_path
-            }
-            
-        except Exception as e:
-            logger.error(f"Error in campaign workflow: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error in campaign workflow: {str(e)}")
+        # Create campaign
+        campaign = await self.create_campaign(campaign_data, owner_id)
+        
+        # Process contacts file
+        contacts_result = await self.process_contacts_file(campaign.id, file)
+        
+        # Generate templates
+        templates_result = await self.generate_templates(campaign.id)
+        
+        # Personalize emails
+        personalize_result = await self.personalize_emails(campaign.id)
+        
+        # Schedule campaign
+        schedule_result = await self.schedule_campaign(campaign.id, campaign_data.start_date)
+        
+        return {
+            "success": True,
+            "campaign_id": campaign.id,
+            "campaign_name": campaign.name,
+            "contacts_imported": contacts_result["imported_count"],
+            "templates_created": templates_result["templates_created"],
+            "emails_personalized": personalize_result["personalized_count"],
+            "emails_scheduled": schedule_result["scheduled_count"],
+            "start_date": schedule_result["start_date"]
+        }

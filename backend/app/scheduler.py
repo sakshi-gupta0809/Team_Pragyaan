@@ -5,12 +5,16 @@ Handles weekend and holiday-aware scheduling for campaigns and follow-ups.
 import logging
 from datetime import datetime, timedelta, time
 from typing import List, Optional, Dict, Any, Tuple
+import os
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import holidays
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 
 from .database import get_db
+from .send_email import send_email as send_email_smtp
 from . import models
 from .models import Campaign, Contact, EmailLog, Schedule, FollowUp, EmailTemplate
 
@@ -21,6 +25,22 @@ router = APIRouter(
     tags=["scheduler"],
     responses={404: {"description": "Not found"}},
 )
+
+# -------------------- Rate limiting & concurrency --------------------
+SEND_CONCURRENCY = int(os.environ.get("SEND_CONCURRENCY", "3"))
+RATE_LIMIT_PER_MINUTE = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "60"))
+
+# Keep timestamps of successful sends to enforce a simple per-minute limit
+_SEND_TIMESTAMPS = deque(maxlen=RATE_LIMIT_PER_MINUTE * 2)
+
+def _prune_old_sends(now: datetime) -> None:
+    one_minute_ago = now - timedelta(seconds=60)
+    while _SEND_TIMESTAMPS and _SEND_TIMESTAMPS[0] < one_minute_ago:
+        _SEND_TIMESTAMPS.popleft()
+
+def _rate_limit_allowance(now: datetime) -> int:
+    _prune_old_sends(now)
+    return max(0, RATE_LIMIT_PER_MINUTE - len(_SEND_TIMESTAMPS))
 
 @router.get("/status")
 async def scheduler_status():
@@ -227,11 +247,44 @@ def schedule_campaign_emails(
     for contact in contacts:
         template = templates[0]
         
-        # Initial email
+        # Personalize subject and body with safe fallbacks
+        recipient_name = contact.name or ""
+        recipient_company = contact.company or ""
+        recipient_category = (contact.category or "other").lower()
+
+        subject = (template.subject or "")
+        body = (template.body or "")
+
+        # Replace common placeholders
+        subject = (subject
+            .replace('{{name}}', recipient_name)
+            .replace('{{company}}', recipient_company)
+            .replace('{name}', recipient_name)
+            .replace('{company}', recipient_company)
+        )
+        body = (body
+            .replace('{{name}}', recipient_name)
+            .replace('{{company}}', recipient_company)
+            .replace('{name}', recipient_name)
+            .replace('{company}', recipient_company)
+        )
+
+        # Ensure greeting and a courteous closing if missing
+        trimmed_body = body.strip()
+        if not trimmed_body.lower().startswith(("hi ", "hello ", "dear ")):
+            greeting = f"Hi {recipient_name},\n\n" if recipient_name else "Hello,\n\n"
+            body = greeting + body
+        if ("thank you" not in body.lower()) and ("regards" not in body.lower()) and ("sincerely" not in body.lower()):
+            body = body.rstrip() + "\n\nThank you,\nNeutrino Tech Systems"
+
+        # Create the email
         email_log = models.EmailLog(
             recipient_email=contact.email,
-            subject=template.subject,
-            body=template.body,
+            recipient_name=recipient_name or None,
+            recipient_company=recipient_company or None,
+            recipient_category=recipient_category,
+            subject=subject,
+            body=body,
             status="pending",
             campaign=campaign
         )
@@ -280,55 +333,112 @@ def schedule_campaign_emails(
             scheduled_count += 1
             
             last_date = followup_date
-
-            # Debug logging with Day offset
-            day_offset = (followup_date.date() - initial_email_date).days
-            logger.info(
-                f"Scheduled follow-up #{i+1} for {contact.email} on {followup_date.date()} (Day {day_offset})"
-            )
     
+    # Commit the transaction and mark campaign as scheduled if any were created
+    if scheduled_count > 0:
+        try:
+            campaign.status = "scheduled"
+        except Exception:
+            pass
     db.commit()
     logger.info(f"Scheduled {scheduled_count} emails for campaign {campaign.id}")
     
     return scheduled_count
 
-def process_scheduled_emails(db: Session) -> Tuple[int, List[Dict[str, Any]]]:
+def process_scheduled_emails(db: Session, max_to_process: Optional[int] = None) -> Tuple[int, List[Dict[str, Any]]]:
     """
     Process emails scheduled to be sent now or in the past.
     Returns the number of emails processed and a list of processed emails.
     """
     now = datetime.now()
     
+    # Find schedules due for sending
+    # Join EmailLog and optionally Contact to skip unsubscribed/cancelled
+    from .models import Contact  # local import to avoid cycle at module import
     due_schedules = db.query(Schedule).join(
         Schedule.email_log
+    ).outerjoin(
+        Contact, EmailLog.contact_id == Contact.id
     ).filter(
         Schedule.send_time <= now,
         Schedule.is_sent == False,
-        EmailLog.status == "pending"
+        EmailLog.status.in_(["pending", "failed"]),
+        # Exclude unsubscribed contacts if known
+        ((Contact.id == None) | (Contact.unsubscribed == False))
     ).all()
     
     if not due_schedules:
         return 0, []
     
+    # Apply rate limit and optional batch limit
+    allowance = _rate_limit_allowance(now)
+    if allowance == 0:
+        return 0, []
+
+    if isinstance(max_to_process, int) and max_to_process > 0:
+        slice_size = min(len(due_schedules), max_to_process, allowance)
+    else:
+        slice_size = min(len(due_schedules), allowance)
+
+    if slice_size <= 0:
+        return 0, []
+
+    targets = due_schedules[:slice_size]
+
     processed_emails = []
-    
-    for schedule in due_schedules:
-        email = schedule.email_log
-        email.status = "sent"
-        email.sent_at = now
-        schedule.is_sent = True
-        
-        processed_emails.append({
-            "id": email.id,
-            "recipient": email.recipient_email,
-            "subject": email.subject,
-            "scheduled_time": schedule.send_time.isoformat(),
-            "sent_time": now.isoformat()
-        })
+
+    # Send concurrently with a small worker pool
+    futures = {}
+    with ThreadPoolExecutor(max_workers=SEND_CONCURRENCY) as executor:
+        for schedule in targets:
+            email = schedule.email_log
+            futures[executor.submit(send_email_smtp, email.id)] = schedule
+
+        for future in as_completed(futures):
+            schedule = futures[future]
+            email = schedule.email_log
+            success = False
+            try:
+                success = future.result()
+            except Exception as send_error:
+                logger.error(f"Error sending email ID {email.id} to {email.recipient_email}: {send_error}")
+                success = False
+
+            if success:
+                schedule.is_sent = True
+                _SEND_TIMESTAMPS.append(datetime.now())
+                processed_emails.append({
+                    "id": email.id,
+                    "recipient": email.recipient_email,
+                    "subject": email.subject,
+                    "scheduled_time": schedule.send_time.isoformat(),
+                    "sent_time": (email.sent_at or now).isoformat()
+                })
+            else:
+                # Mark failure and push schedule for retry after backoff (15 minutes)
+                # Keep previous email_log.status as set by sender (failed) or set here
+                try:
+                    email.status = "failed"
+                except Exception:
+                    pass
+                try:
+                    schedule.send_time = now + timedelta(minutes=15)
+                except Exception:
+                    pass
     
     db.commit()
     
     return len(processed_emails), processed_emails
+
+
+@router.post("/process-now")
+async def process_now(limit: int = 100, db: Session = Depends(get_db)):
+    """Trigger processing of due scheduled emails immediately."""
+    processed_count, processed = process_scheduled_emails(db, max_to_process=limit)
+    return {
+        "processed_count": processed_count,
+        "processed": processed
+    }
 
 def init_scheduler():
     """

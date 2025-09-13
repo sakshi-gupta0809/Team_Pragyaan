@@ -3,8 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from typing import List, Optional
+from pydantic import BaseModel
 from datetime import datetime
-from .models import Campaign, Contact, EmailLog
+from .models import Campaign, Contact, EmailLog, Schedule, EmailTemplate, FollowUp
 from .schemas import Campaign as CampaignSchema
 from .schemas import CampaignCreate, CampaignResponse, PaginatedCampaigns
 from .database import get_db
@@ -172,10 +173,111 @@ def delete_campaign(
     db_campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
     if not db_campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
-    
-    db.delete(db_campaign)
-    db.commit()
+
+    try:
+        # Delete dependent records explicitly to avoid FK constraint errors
+        email_log_ids = [row[0] for row in db.query(EmailLog.id).filter(EmailLog.campaign_id == campaign_id).all()]
+
+        if email_log_ids:
+            db.query(Schedule).filter(Schedule.email_log_id.in_(email_log_ids)).delete(synchronize_session=False)
+
+        db.query(EmailLog).filter(EmailLog.campaign_id == campaign_id).delete(synchronize_session=False)
+        db.query(EmailTemplate).filter(EmailTemplate.campaign_id == campaign_id).delete(synchronize_session=False)
+        db.query(FollowUp).filter(FollowUp.campaign_id == campaign_id).delete(synchronize_session=False)
+        db.query(Contact).filter(Contact.campaign_id == campaign_id).delete(synchronize_session=False)
+
+        # Finally delete the campaign
+        db.delete(db_campaign)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete campaign: {str(e)}")
+
     return {"message": "Campaign deleted successfully"}
+
+
+class BulkDeleteRequest(BaseModel):
+    ids: List[int]
+
+
+@router.post("/campaigns/bulk-delete")
+def bulk_delete_campaigns(
+    payload: BulkDeleteRequest,
+    db: Session = Depends(get_db)
+):
+    """Bulk delete campaigns and their dependent records"""
+    deleted = []
+    errors = []
+    for cid in payload.ids:
+        try:
+            db_campaign = db.query(Campaign).filter(Campaign.id == cid).first()
+            if not db_campaign:
+                errors.append({"id": cid, "error": "not_found"})
+                continue
+
+            email_log_ids = [row[0] for row in db.query(EmailLog.id).filter(EmailLog.campaign_id == cid).all()]
+            if email_log_ids:
+                db.query(Schedule).filter(Schedule.email_log_id.in_(email_log_ids)).delete(synchronize_session=False)
+            db.query(EmailLog).filter(EmailLog.campaign_id == cid).delete(synchronize_session=False)
+            db.query(EmailTemplate).filter(EmailTemplate.campaign_id == cid).delete(synchronize_session=False)
+            db.query(FollowUp).filter(FollowUp.campaign_id == cid).delete(synchronize_session=False)
+            db.query(Contact).filter(Contact.campaign_id == cid).delete(synchronize_session=False)
+            db.delete(db_campaign)
+            db.commit()
+            deleted.append(cid)
+        except Exception as e:
+            db.rollback()
+            errors.append({"id": cid, "error": str(e)})
+    return {"deleted": deleted, "errors": errors}
+
+
+@router.post("/campaigns/{campaign_id}/cancel-schedule")
+def cancel_campaign_schedule(
+    campaign_id: int = Path(..., gt=0),
+    db: Session = Depends(get_db)
+):
+    """Cancel a scheduled campaign: remove unsent schedules and pause the campaign."""
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    try:
+        # Find all email logs for this campaign
+        email_log_ids = [row[0] for row in db.query(EmailLog.id).filter(EmailLog.campaign_id == campaign_id).all()]
+        removed = 0
+        if email_log_ids:
+            removed = db.query(Schedule).filter(
+                Schedule.email_log_id.in_(email_log_ids),
+                Schedule.is_sent == False
+            ).delete(synchronize_session=False)
+
+        # Pause campaign
+        campaign.status = "paused"
+        db.commit()
+
+        return {"message": "Schedule cancelled", "schedules_removed": removed, "status": campaign.status}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to cancel schedule: {str(e)}")
+
+
+@router.get("/campaigns/scheduled", response_model=List[CampaignSchema])
+def get_scheduled_campaigns(
+    db: Session = Depends(get_db)
+):
+    """Return campaigns that are scheduled or have pending schedules."""
+    # Campaigns explicitly marked as scheduled
+    q1 = db.query(Campaign).filter(Campaign.status == "scheduled")
+
+    # Campaigns with at least one pending schedule
+    q2 = db.query(Campaign).join(EmailLog, EmailLog.campaign_id == Campaign.id).join(Schedule, Schedule.email_log_id == EmailLog.id).filter(Schedule.is_sent == False)
+
+    # UNION via IDs to avoid duplicates
+    scheduled_ids = {c.id for c in q1.all()} | {c.id for c in q2.all()}
+    if not scheduled_ids:
+        return []
+    campaigns = db.query(Campaign).filter(Campaign.id.in_(list(scheduled_ids))).order_by(Campaign.created_at.desc()).all()
+    return campaigns
 
 @router.put("/campaigns/{campaign_id}/status")
 def update_campaign_status(

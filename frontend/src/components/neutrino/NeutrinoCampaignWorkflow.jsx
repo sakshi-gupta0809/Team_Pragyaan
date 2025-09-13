@@ -11,6 +11,7 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
   
   // State for storing data between steps
   const [campaignData, setCampaignData] = useState({
@@ -73,6 +74,7 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
       
       // Move to next step
       setCurrentStep(2);
+      setToast({ visible: true, message: 'Campaign created successfully', type: 'success' });
     } catch (err) {
       console.error("Error submitting campaign form:", err);
       // Fallback behavior for demo/development purposes
@@ -110,6 +112,7 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
       
       // Show error but continue with demo data
       setError("Backend connection failed. Using demo data for preview purposes.");
+      setToast({ visible: true, message: 'Using demo campaign data', type: 'error' });
       
       // Move to next step anyway
       setCurrentStep(2);
@@ -149,6 +152,7 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
       
       // Move to next step
       setCurrentStep(3);
+      setToast({ visible: true, message: 'Categories approved', type: 'success' });
     } catch (err) {
       console.error("Error approving categories:", err);
       
@@ -179,6 +183,7 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
       
       // Show error but continue with demo data
       setError("Backend connection failed. Using demo templates for preview purposes.");
+      setToast({ visible: true, message: 'Using demo templates', type: 'error' });
       
       // Move to next step anyway
       setCurrentStep(3);
@@ -219,6 +224,7 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
       
       // Move to next step
       setCurrentStep(4);
+      setToast({ visible: true, message: 'Templates saved', type: 'success' });
     } catch (err) {
       console.error("Error saving templates:", err);
       
@@ -230,6 +236,7 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
       
       // Show error but continue with existing templates
       setError("Backend connection failed. Using existing templates for preview purposes.");
+      setToast({ visible: true, message: 'Failed to save templates; using current', type: 'error' });
       
       // Move to next step anyway
       setCurrentStep(4);
@@ -272,6 +279,7 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
       
       // Move to final step
       setCurrentStep(5);
+      setToast({ visible: true, message: 'Schedule approved', type: 'success' });
     } catch (err) {
       console.error("Error approving schedule:", err);
       
@@ -296,6 +304,7 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
       
       // Show error but continue with demo data
       setError("Backend connection failed. Using demo schedule data for preview purposes.");
+      setToast({ visible: true, message: 'Using demo schedule', type: 'error' });
       
       // Move to final step anyway
       setCurrentStep(5);
@@ -336,6 +345,7 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
       
       // Trigger download
       link.click();
+      setToast({ visible: true, message: 'CSV downloaded', type: 'success' });
       
       // Clean up
       window.URL.revokeObjectURL(url);
@@ -372,6 +382,7 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
       
       // Show a more informative error message
       setError("Backend connection failed. Generated a demo CSV file with placeholder data.");
+      setToast({ visible: true, message: 'Generated demo CSV', type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -415,6 +426,14 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
   
   return (
     <div className="bg-brand-white rounded-2xl shadow-md">
+      {toast.visible && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow ${toast.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+          <div className="flex items-center">
+            <span className="text-sm">{toast.message}</span>
+            <button className={`ml-3 text-xs ${toast.type === 'success' ? 'text-green-700' : 'text-red-700'}`} onClick={() => setToast({ ...toast, visible: false })}>Dismiss</button>
+          </div>
+        </div>
+      )}
       {/* Back button */}
       <div className="p-4 border-b border-gray-200">
         <button

@@ -57,6 +57,8 @@ const Dashboard = () => {
   const [schedules, setSchedules] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [emailLogs, setEmailLogs] = useState([]);
+  const [liveStats, setLiveStats] = useState({ loading: false, data: null, error: null });
+  const [scheduledCampaigns, setScheduledCampaigns] = useState([]);
   
   // Enhanced error handling
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
@@ -64,6 +66,21 @@ const Dashboard = () => {
   const [apiError, setApiError] = useState(null);
 
   const toggleTimer = () => setActiveTimer(!activeTimer);
+
+  const refreshScheduledCampaigns = async () => {
+    try {
+      const res = await fetch('/api/campaigns/paginated/?page=1&page_size=100&status=scheduled', { headers: { 'Accept': 'application/json' } });
+      if (!res.ok) {
+        setScheduledCampaigns([]);
+        return;
+      }
+      const data = await res.json();
+      const items = Array.isArray(data?.campaigns) ? data.campaigns.map(c => ({ id: c.id, name: c.name })) : [];
+      setScheduledCampaigns(items);
+    } catch (e) {
+      setScheduledCampaigns([]);
+    }
+  };
 
   // Days of week for calendar
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -106,12 +123,13 @@ const Dashboard = () => {
     setSelectedDate(newDate);
   };
 
-  const navigationItems = [
+  // Create a state for navigation items to update the badge dynamically
+  const [navigationItems, setNavigationItems] = useState([
     { id: 'dashboard', name: 'Dashboard', icon: BarChart3, active: activeSection === 'dashboard' },
-    { id: 'campaigns', name: 'Campaigns', icon: Mail, badge: '12', active: activeSection === 'campaigns' },
+    { id: 'campaigns', name: 'Campaigns', icon: Mail, badge: stats.total_campaigns.toString(), active: activeSection === 'campaigns' },
     { id: 'contacts', name: 'Contacts', icon: Users, active: activeSection === 'contacts' },
     { id: 'neutrino', name: 'Create Campaign', icon: PlusCircle, active: activeSection === 'neutrino' }
-  ];
+  ]);
 
   const generalItems = [
     { id: 'settings', name: 'Settings', icon: Settings },
@@ -247,6 +265,25 @@ const Dashboard = () => {
     ]);
   }, []);
 
+  // Fetch live campaign stats for the last used campaign
+  const fetchLiveCampaignStats = async () => {
+    try {
+      const id = window.localStorage.getItem('currentCampaignId');
+      if (!id) return;
+      setLiveStats(s => ({ ...s, loading: true, error: null }));
+      const res = await fetch(`http://localhost:8000/campaigns/${id}/stats`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to load campaign stats');
+      setLiveStats({ loading: false, data, error: null });
+    } catch (e) {
+      setLiveStats({ loading: false, data: null, error: e.message });
+    }
+  };
+
+  // Removed auto-fetch to declutter UI per request
+
   // Active bookings data
   const activeBookings = [
     {
@@ -343,10 +380,21 @@ const Dashboard = () => {
         await fetchEndpoint("/api/campaigns/", (campaignsData) => {
           setRecentCampaigns(campaignsData);
           // Update stats with real campaign count
+          // Update both stats and navigation items with real campaign count
+          const campaignCount = campaignsData.length;
           setStats(prevStats => ({
             ...prevStats,
-            total_campaigns: campaignsData.length
+            total_campaigns: campaignCount
           }));
+          
+          // Update the navigation items with the actual campaign count
+          setNavigationItems(prevItems =>
+            prevItems.map(item =>
+              item.id === 'campaigns'
+                ? { ...item, badge: campaignCount.toString() }
+                : item
+            )
+          );
         }, "campaigns");
         
         await fetchEndpoint("/api/contacts/", (contactsData) => {
@@ -419,6 +467,56 @@ const Dashboard = () => {
 
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (activeSection === 'dashboard') {
+      refreshScheduledCampaigns();
+    }
+    
+    // When navigating to campaigns section, refresh the campaign count
+    if (activeSection === 'campaigns') {
+      // Fetch the latest campaign count
+      fetch('http://localhost:8000/api/campaigns/paginated/', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        },
+        mode: 'cors',
+        credentials: 'omit'
+      })
+      .then(response => response.json())
+      .then(data => {
+        const campaignCount = data.total;
+        console.log('Refreshed campaign count:', campaignCount);
+        
+        // Update stats with the latest count
+        setStats(prevStats => ({
+          ...prevStats,
+          total_campaigns: campaignCount
+        }));
+        
+        // Update navigation items with the latest count
+        setNavigationItems(prevItems =>
+          prevItems.map(item =>
+            item.id === 'campaigns'
+              ? { ...item, badge: campaignCount.toString() }
+              : item
+          )
+        );
+      })
+      .catch(error => {
+        console.error('Error refreshing campaign count:', error);
+      });
+    }
+    
+    // Update active state in navigation items when section changes
+    setNavigationItems(prevItems =>
+      prevItems.map(item => ({
+        ...item,
+        active: item.id === activeSection
+      }))
+    );
+  }, [activeSection]);
 
   // Handle file import
   const handleFileImport = async (event) => {
@@ -673,6 +771,8 @@ const handleAddContact = async () => {
                   activeTimer={activeTimer}
                   toggleTimer={toggleTimer}
                   timerTime={timerTime}
+                  scheduledCampaigns={scheduledCampaigns}
+                  onRefreshScheduled={refreshScheduledCampaigns}
                 />;
     }
   };
@@ -887,9 +987,10 @@ const handleAddContact = async () => {
               {renderContent()}
             </div>
             
-            {/* Right Content (Calendar) */}
+            {/* Right Content (Calendar) - Reduced size */}
             {activeSection === 'dashboard' && (
-              <div className="w-2/5 flex-shrink-0">
+              <div className="w-2/5 flex-shrink-0 max-h-[600px] overflow-y-auto">
+                
                 {/* Date Header */}
                 <div className="mb-6">
                   <div className="flex justify-between items-center">
@@ -915,19 +1016,19 @@ const handleAddContact = async () => {
                   </div>
                 </div>
                 
-                {/* Calendar */}
-                <div className="mb-8">
-                  {/* Days of week */}
-                  <div className="grid grid-cols-7 mb-2">
+                {/* Calendar - Reduced size */}
+                <div className="mb-4">
+                  {/* Days of week - Reduced size */}
+                  <div className="grid grid-cols-7 mb-1">
                     {weekDays.map((day, index) => (
-                      <div key={index} className="text-center text-sm text-gray-500 py-2">
+                      <div key={index} className="text-center text-xs text-gray-500 py-1">
                         {day}
                       </div>
                     ))}
                   </div>
                   
-                  {/* Calendar grid */}
-                  <div className="grid grid-cols-7 gap-2">
+                  {/* Calendar grid - Reduced size */}
+                  <div className="grid grid-cols-7 gap-1">
                     {(() => {
                       // Get first day of the month
                       const firstDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
@@ -974,11 +1075,11 @@ const handleAddContact = async () => {
                         
                         if (isSelectedDate) {
                           highlight = true;
-                          highlightColor = 'bg-emerald-600';
+                          highlightColor = 'bg-gray-300'; // Changed from emerald to gray
                         } else if (isCurrentMonth && i === currentDate.getDate()) {
                           // Highlight current day if viewing current month
                           highlight = true;
-                          highlightColor = 'bg-blue-500';
+                          highlightColor = 'bg-gray-400'; // Changed from blue to gray
                         }
                         
                         calendarDays.push({
@@ -1022,24 +1123,24 @@ const handleAddContact = async () => {
                                 setActiveDate(newDate);
                               }
                             }}
-                            className={`text-center py-2 ${
+                            className={`text-center py-1 ${
                               !day.currentMonth ? 'text-gray-300' : 'cursor-pointer hover:bg-gray-100 rounded-lg'
                             }`}
                           >
                             <div className="relative">
                               {day.highlight ? (
-                                <div className={`w-8 h-8 rounded-full ${day.highlightColor} text-white mx-auto flex items-center justify-center`}>
+                                <div className={`w-6 h-6 rounded-full ${day.highlightColor} text-white mx-auto flex items-center justify-center text-xs`}>
                                   {day.day}
                                 </div>
                               ) : (
-                                <div className="w-8 h-8 mx-auto flex items-center justify-center">
+                                <div className="w-6 h-6 mx-auto flex items-center justify-center text-xs">
                                   {day.day}
                                 </div>
                               )}
                               
                               {/* Event indicator dot */}
                               {day.currentMonth && dayHasEvents && (
-                                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
+                                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-gray-400 rounded-full"></div>
                               )}
                             </div>
                           </div>
@@ -1049,9 +1150,9 @@ const handleAddContact = async () => {
                   </div>
                 </div>
                 
-                {/* Selected Date Information */}
-                <div className="mt-6 mb-4">
-                  <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                {/* Selected Date Information - Reduced size */}
+                <div className="mt-4 mb-2">
+                  <h3 className="text-base font-semibold text-gray-700 mb-1">
                     Events for {formatDate(activeDate).month} {formatDate(activeDate).day}, {formatDate(activeDate).year}
                   </h3>
                   
@@ -1072,10 +1173,10 @@ const handleAddContact = async () => {
                       <div
                         key={event.id}
                         onClick={() => openEditEventModal(event)}
-                        className={`rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow ${
-                          event.color === 'bg-emerald-500' ? 'bg-emerald-100 border-l-4 border-emerald-500' :
-                          event.color === 'bg-amber-400' ? 'bg-amber-100 border-l-4 border-amber-400' :
-                          'bg-rose-100 border-l-4 border-rose-400'
+                        className={`rounded-lg p-2 cursor-pointer hover:shadow-md transition-shadow ${
+                          event.color === 'bg-emerald-500' ? 'bg-gray-100 border-l-4 border-gray-400' :
+                          event.color === 'bg-amber-400' ? 'bg-gray-100 border-l-4 border-gray-400' :
+                          'bg-gray-100 border-l-4 border-gray-400'
                         }`}
                       >
                         <div className="flex">
@@ -1381,13 +1482,55 @@ const DashboardHeader = ({
 );
 
 // Dashboard Home Content
-const DashboardHome = ({ stats, recentCampaigns, activeTimer, toggleTimer, timerTime }) => (
+const DashboardHome = ({ stats, recentCampaigns, activeTimer, toggleTimer, timerTime, scheduledCampaigns, onRefreshScheduled }) => (
   <>
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 w-full">
-      <StatCard icon={<Mail className="w-4 h-4 text-emerald-600" />} label="Total Campaigns" value={stats.total_campaigns} />
-      <StatCard icon={<Send className="w-4 h-4 text-teal-600" />} label="Emails Sent" value={stats.emails_sent} />
-      <StatCard icon={<Eye className="w-4 h-4 text-emerald-600" />} label="Open Rate" value={`${stats.open_rate}%`} />
-      <StatCard icon={<MousePointer className="w-4 h-4 text-teal-600" />} label="Click Rate" value={`${stats.click_rate}%`} />
+    <div className="grid grid-cols-2 gap-x-3 gap-y-0 mb-1 w-full items-stretch">
+      <div className="h-28">
+        <StatCard icon={<Mail className="w-4 h-4 text-emerald-600" />} label="Total Campaigns" value={stats.total_campaigns} />
+      </div>
+      <div className="h-28">
+        <StatCard icon={<Send className="w-4 h-4 text-teal-600" />} label="Emails Sent" value={stats.emails_sent} />
+      </div>
+      <div className="h-28">
+        <StatCard icon={<Eye className="w-4 h-4 text-emerald-600" />} label="Open Rate" value={`${stats.open_rate}%`} />
+      </div>
+      <div className="h-28">
+        <StatCard icon={<MousePointer className="w-4 h-4 text-teal-600" />} label="Click Rate" value={`${stats.click_rate}%`} />
+      </div>
+    </div>
+    {/* Scheduled Campaigns */}
+    <div className="bg-white rounded-2xl p-5 shadow-md border border-gray-100 mb-6 w-full">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-lg font-medium text-gray-900">Scheduled Campaigns</h3>
+        <button onClick={onRefreshScheduled} className="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50">Refresh</button>
+      </div>
+      <div className="divide-y">
+        {scheduledCampaigns.length === 0 ? (
+          <div className="text-sm text-gray-500 py-2">No scheduled campaigns</div>
+        ) : (
+          scheduledCampaigns.map(c => (
+            <div key={c.id} className="flex items-center justify-between py-2">
+              <div className="text-sm text-gray-800">{c.name} (ID {c.id})</div>
+              <button
+                className="text-xs px-3 py-1.5 rounded-lg border hover:bg-red-50 text-red-700 border-red-200"
+                onClick={async () => {
+                  if (!confirm(`Cancel schedule for ${c.name}?`)) return;
+                  try {
+                    const numericId = (typeof c.id === 'string' && c.id.startsWith('#')) ? parseInt(c.id.replace('#','')) : c.id;
+                    const resp = await fetch(`/api/campaigns/${numericId}/cancel-schedule`, { method: 'POST', headers: { 'Accept': 'application/json' } });
+                    if (!resp.ok) throw new Error('Failed');
+                    onRefreshScheduled();
+                  } catch (e) {
+                    alert('Failed to cancel schedule');
+                  }
+                }}
+              >
+                Cancel schedule
+              </button>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   </>
 );

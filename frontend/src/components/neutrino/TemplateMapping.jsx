@@ -312,18 +312,39 @@ const TemplateMapping = ({ templates, categories, onSaveTemplates, isLoading }) 
                 </div>
               </div>
             ) : (
-              <div className="bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 prose max-w-none min-h-[200px] whitespace-pre-wrap font-mono">
+              <div className="bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 prose max-w-none min-h-[200px] font-sans">
                 {/* Display email as a complete formatted template */}
                 <div className="font-medium mb-2">Subject: {currentTemplate.subject || 'No subject'}</div>
                 <div className="border-t border-gray-300 mb-2 pt-2"></div>
+                
+                {/* Add a note about placeholders - changed to light grey */}
+                <div className="bg-gray-100 p-2 mb-3 text-xs rounded">
+                  <p className="font-bold">Preview Note:</p>
+                  <p>Highlighted text shows placeholders that will be replaced with actual data from Excel.</p>
+                </div>
+                
                 <div>
                   {currentTemplate.body ? (
                     <div className="complete-email-template">
-                      <p>Hi {'{{first_name}}'},</p>
+                      {/* Highlight the placeholder to show it will be replaced with actual data - changed to light grey */}
+                      <p>Hi <span className="bg-gray-200 text-gray-800 px-1 rounded font-bold">{'{{first_name}}'}</span>,</p>
                       
-                      {currentTemplate.body.split('\n\n').map((paragraph, index) => (
-                        <p key={index}>{paragraph}</p>
-                      ))}
+                      {/* Render HTML content safely with placeholder highlighting - changed to light grey */}
+                      <div
+                        dangerouslySetInnerHTML={{
+                          __html: currentTemplate.body
+                            .split('\n\n')
+                            .map(paragraph => {
+                              // Highlight placeholders in light grey instead of blue
+                              const highlightedParagraph = paragraph.replace(
+                                /\{\{([^}]+)\}\}/g,
+                                '<span class="bg-gray-200 text-gray-800 px-1 rounded font-bold">{{$1}}</span>'
+                              );
+                              return `<p>${highlightedParagraph}</p>`;
+                            })
+                            .join('')
+                        }}
+                      />
                       
                       <p>Looking forward to connecting.</p>
                       
