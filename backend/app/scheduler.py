@@ -335,7 +335,12 @@ def schedule_campaign_emails(
             # Update last date for next follow-up
             last_date = followup_date
     
-    # Commit the transaction
+    # Commit the transaction and mark campaign as scheduled if any were created
+    if scheduled_count > 0:
+        try:
+            campaign.status = "scheduled"
+        except Exception:
+            pass
     db.commit()
     logger.info(f"Scheduled {scheduled_count} emails for campaign {campaign.id}")
     

@@ -73,13 +73,14 @@ const Dashboard = ({ onLogout }) => {
 
   const refreshScheduledCampaigns = async () => {
     try {
-      const res = await fetch('/api/campaigns/scheduled', { headers: { 'Accept': 'application/json' } });
+      const res = await fetch('/api/campaigns/paginated/?page=1&page_size=100&status=scheduled', { headers: { 'Accept': 'application/json' } });
       if (!res.ok) {
         setScheduledCampaigns([]);
         return;
       }
       const data = await res.json();
-      setScheduledCampaigns(Array.isArray(data) ? data : []);
+      const items = Array.isArray(data?.campaigns) ? data.campaigns.map(c => ({ id: c.id, name: c.name })) : [];
+      setScheduledCampaigns(items);
     } catch (e) {
       setScheduledCampaigns([]);
     }
@@ -1645,7 +1646,8 @@ const DashboardHome = ({ stats, recentCampaigns, activeTimer, toggleTimer, timer
                 onClick={async () => {
                   if (!confirm(`Cancel schedule for ${c.name}?`)) return;
                   try {
-                    const resp = await fetch(`/api/campaigns/${c.id}/cancel-schedule`, { method: 'POST', headers: { 'Accept': 'application/json' } });
+                    const numericId = (typeof c.id === 'string' && c.id.startsWith('#')) ? parseInt(c.id.replace('#','')) : c.id;
+                    const resp = await fetch(`/api/campaigns/${numericId}/cancel-schedule`, { method: 'POST', headers: { 'Accept': 'application/json' } });
                     if (!resp.ok) throw new Error('Failed');
                     onRefreshScheduled();
                   } catch (e) {
