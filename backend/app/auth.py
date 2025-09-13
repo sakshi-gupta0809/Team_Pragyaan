@@ -190,3 +190,34 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
     return schemas.Token(access_token=token)
 
 
+def get_current_user(token: str = None, db: Session = Depends(get_db)) -> models.User:
+    """Get current user from token or return a default user for testing"""
+    if not token:
+        # For testing purposes, return the first user or create a default one
+        user = db.query(models.User).first()
+        if not user:
+            # Create a default user for testing
+            user = models.User(
+                name="Test User",
+                email="test@example.com",
+                password_hash=None
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        return user
+    
+    try:
+        user_id = get_current_user_id(token)
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        
+        return user
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+

@@ -14,6 +14,40 @@ class User(BaseModel):
     name: str
     email: EmailStr
 
+
+# -------------------- Profile --------------------
+class ProfileUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    company: Optional[str] = None
+    job_title: Optional[str] = None
+    bio: Optional[str] = None
+    avatar_url: Optional[str] = None
+    timezone: Optional[str] = None
+    language: Optional[str] = None
+
+
+class ProfileResponse(BaseModel):
+    id: int
+    name: str
+    email: EmailStr
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    company: Optional[str] = None
+    job_title: Optional[str] = None
+    bio: Optional[str] = None
+    avatar_url: Optional[str] = None
+    timezone: Optional[str] = None
+    language: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

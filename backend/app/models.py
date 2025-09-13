@@ -10,6 +10,19 @@ class User(Base):
     name = Column(String, index=True)
     email = Column(String, unique=True, index=True)
     password_hash = Column(String, nullable=True)
+    
+    # Profile fields
+    first_name = Column(String, nullable=True)
+    last_name = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    company = Column(String, nullable=True)
+    job_title = Column(String, nullable=True)
+    bio = Column(Text, nullable=True)
+    avatar_url = Column(String, nullable=True)
+    timezone = Column(String, default="UTC", nullable=True)
+    language = Column(String, default="en", nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     campaigns = relationship("Campaign", back_populates="owner")

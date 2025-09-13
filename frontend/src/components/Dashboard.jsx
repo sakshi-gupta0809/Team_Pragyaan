@@ -3,11 +3,12 @@ import {
   Mail, Users, BarChart3, Settings, HelpCircle, LogOut,
   Search, Bell, Plus, Upload, TrendingUp, Eye, MousePointer, MoreVertical, Pause, Play, Square,
   Send, ChevronLeft, ChevronRight, PlusCircle, RefreshCw, ExternalLink, Clock, User, ArrowUpRight,
-  Calendar
+  Calendar, UserCircle
 } from 'lucide-react';
 import ContactsPage from './ContactsPage';
 import CampaignsInterface from './CampaignsInterface';
 import NeutrinoCampaignWorkflow from './neutrino/NeutrinoCampaignWorkflow';
+import Profile from './Profile';
 
 const Dashboard = ({ onLogout }) => {
   const [activeSection, setActiveSection] = useState('dashboard');
@@ -129,7 +130,8 @@ const Dashboard = ({ onLogout }) => {
     { id: 'dashboard', name: 'Dashboard', icon: BarChart3, active: activeSection === 'dashboard' },
     { id: 'campaigns', name: 'Campaigns', icon: Mail, badge: '12', active: activeSection === 'campaigns' },
     { id: 'contacts', name: 'Contacts', icon: Users, active: activeSection === 'contacts' },
-    { id: 'neutrino', name: 'Create Campaign', icon: PlusCircle, active: activeSection === 'neutrino' }
+    { id: 'neutrino', name: 'Create Campaign', icon: PlusCircle, active: activeSection === 'neutrino' },
+    { id: 'profile', name: 'Profile', icon: UserCircle, active: activeSection === 'profile' }
   ];
 
   const generalItems = [
@@ -772,6 +774,8 @@ const handleAddContact = async () => {
         return <CampaignsInterface />;
       case 'contacts':
         return <ContactsPage />;
+      case 'profile':
+        return <Profile />;
       case 'settings':
         return <SectionCard title="Settings" data={[]} icon={<Settings className="w-16 h-16 text-gray-300" />} />;
       case 'help':
