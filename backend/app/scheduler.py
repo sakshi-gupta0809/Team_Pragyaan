@@ -3,7 +3,7 @@ Email scheduler module for handling scheduled email tasks with business-day awar
 Handles weekend and holiday-aware scheduling for campaigns and follow-ups.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from typing import List, Optional, Dict, Any, Tuple
 import holidays
 from fastapi import APIRouter, Depends, HTTPException
@@ -152,9 +152,7 @@ def is_holiday(date: datetime) -> bool:
     """
     Check if a date is a US federal holiday.
     """
-    # Get holidays for the date's year
     us_holidays = get_us_holidays(date.year)
-    # Check if the date is in the holidays
     return date.date() in us_holidays
 
 def is_business_day(date: datetime) -> bool:
@@ -167,34 +165,35 @@ def get_next_business_day(date: datetime) -> datetime:
     """
     Get the next business day from a given date.
     If the date is already a business day, returns the same date.
+    Normalizes to 9:00 AM.
     """
-    # If the date is already a business day, return it
-    if is_business_day(date):
-        return date
-    
-    # Otherwise, find the next business day
-    next_day = date + timedelta(days=1)
+    next_day = date
     while not is_business_day(next_day):
         next_day += timedelta(days=1)
-    
-    return next_day
+    return datetime.combine(next_day.date(), time(hour=9))
 
 def add_business_days(date: datetime, days: int) -> datetime:
     """
     Add a specified number of business days to a date.
+    Normalizes to 9:00 AM.
+    Ensures the result date is different from the input date.
     """
     if days <= 0:
-        return date
+        return datetime.combine(date.date(), time(hour=9))
     
-    result_date = date
+    # Start from the next day to ensure we don't return the same date
+    result_date = date + timedelta(days=1)
     days_added = 0
     
     while days_added < days:
-        result_date += timedelta(days=1)
         if is_business_day(result_date):
             days_added += 1
+        
+        # If we haven't added enough business days yet, move to the next day
+        if days_added < days:
+            result_date += timedelta(days=1)
     
-    return result_date
+    return datetime.combine(result_date.date(), time(hour=9))
 
 # -------------------- Scheduling Functions --------------------
 
@@ -207,31 +206,28 @@ def schedule_campaign_emails(
     Schedule all emails for a campaign starting from the given date.
     Returns the number of emails scheduled.
     """
-    # Get all contacts for the campaign
     contacts = db.query(Contact).filter(Contact.campaign_id == campaign.id).all()
     if not contacts:
         logger.warning(f"No contacts found for campaign {campaign.id}")
         return 0
     
-    # Get templates for the campaign
     templates = db.query(EmailTemplate).filter(EmailTemplate.campaign_id == campaign.id).all()
     if not templates:
         logger.warning(f"No templates found for campaign {campaign.id}")
         return 0
     
-    # Get follow-ups for the campaign
     followups = db.query(FollowUp).filter(FollowUp.campaign_id == campaign.id).all()
     
-    # Count of scheduled emails
+    # Normalize start date
+    current_date = get_next_business_day(start_date)
+    initial_email_date = current_date.date()
+    
     scheduled_count = 0
     
-    # Schedule initial emails for all contacts
-    current_date = start_date
     for contact in contacts:
-        # Find appropriate template (use first template for now, later will match by category)
         template = templates[0]
         
-        # Create the email
+        # Initial email
         email_log = models.EmailLog(
             recipient_email=contact.email,
             subject=template.subject,
@@ -240,9 +236,8 @@ def schedule_campaign_emails(
             campaign=campaign
         )
         db.add(email_log)
-        db.flush()  # Generate ID for the email
+        db.flush()
         
-        # Schedule the email
         schedule = models.Schedule(
             send_time=current_date,
             is_holiday=False,
@@ -252,16 +247,19 @@ def schedule_campaign_emails(
         db.add(schedule)
         scheduled_count += 1
         
-        # Schedule follow-ups if any
         last_date = current_date
-        for followup in followups:
-            # Calculate send date based on follow-up delay (minimum 2 business days)
+        
+        # Follow-ups
+        for i, followup in enumerate(followups):
             delay_days = followup.delay_days or 2
             if delay_days < 2:
                 delay_days = 2
-            followup_date = add_business_days(last_date, delay_days)
+
+            if i == 0:
+                followup_date = add_business_days(current_date, delay_days)
+            else:
+                followup_date = add_business_days(last_date, delay_days)
             
-            # Create the follow-up email
             followup_email = models.EmailLog(
                 recipient_email=contact.email,
                 subject=followup.subject or f"Follow-up: {template.subject}",
@@ -272,7 +270,6 @@ def schedule_campaign_emails(
             db.add(followup_email)
             db.flush()
             
-            # Schedule the follow-up
             followup_schedule = models.Schedule(
                 send_time=followup_date,
                 is_holiday=False,
@@ -282,10 +279,14 @@ def schedule_campaign_emails(
             db.add(followup_schedule)
             scheduled_count += 1
             
-            # Update last date for next follow-up
             last_date = followup_date
+
+            # Debug logging with Day offset
+            day_offset = (followup_date.date() - initial_email_date).days
+            logger.info(
+                f"Scheduled follow-up #{i+1} for {contact.email} on {followup_date.date()} (Day {day_offset})"
+            )
     
-    # Commit the transaction
     db.commit()
     logger.info(f"Scheduled {scheduled_count} emails for campaign {campaign.id}")
     
@@ -298,7 +299,6 @@ def process_scheduled_emails(db: Session) -> Tuple[int, List[Dict[str, Any]]]:
     """
     now = datetime.now()
     
-    # Find schedules due for sending
     due_schedules = db.query(Schedule).join(
         Schedule.email_log
     ).filter(
@@ -314,9 +314,6 @@ def process_scheduled_emails(db: Session) -> Tuple[int, List[Dict[str, Any]]]:
     
     for schedule in due_schedules:
         email = schedule.email_log
-        
-        # In a real implementation, this would call the actual email sending logic
-        # For now, just mark as sent
         email.status = "sent"
         email.sent_at = now
         schedule.is_sent = True
@@ -329,7 +326,6 @@ def process_scheduled_emails(db: Session) -> Tuple[int, List[Dict[str, Any]]]:
             "sent_time": now.isoformat()
         })
     
-    # Commit the changes
     db.commit()
     
     return len(processed_emails), processed_emails

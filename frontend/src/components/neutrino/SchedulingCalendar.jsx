@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Info, CheckCircle, AlertTriangle, ArrowRight } from 'lucide-react';
 
 const SchedulingCalendar = ({ campaignStart, categories, onScheduleApprove, isLoading }) => {
-  const [followUpDays, setFollowUpDays] = useState([0, 2, 5, 9, 14]);
+  const [followUpDays, setFollowUpDays] = useState([0, 2, 4, 6, 8]); // Consistent 2-business-day gaps
   const [scheduleData, setScheduleData] = useState([]);
   const [view, setView] = useState('timeline'); // 'timeline' or 'calendar'
   
@@ -15,26 +15,75 @@ const SchedulingCalendar = ({ campaignStart, categories, onScheduleApprove, isLo
     
     // For each category and follow-up day, calculate the send date
     categories.forEach(category => {
-      followUpDays.forEach(days => {
-        const sendDate = new Date(startDate);
-        sendDate.setDate(startDate.getDate() + days);
+      // First, handle the initial email (Day 0)
+      const initialDate = new Date(startDate);
+      
+      // Skip weekends and holidays for initial date
+      while (isWeekend(initialDate) || isUSHoliday(initialDate)) {
+        initialDate.setDate(initialDate.getDate() + 1);
+      }
+      
+      schedule.push({
+        category,
+        followUpDay: 0,
+        sendDate: new Date(initialDate),
+        description: 'Initial email'
+      });
+      
+      // Now handle follow-ups, ensuring proper business day gaps
+      let lastDate = new Date(initialDate);
+      
+      // Skip day 0 in the follow-up days array
+      const nonZeroDays = followUpDays.filter(day => day > 0);
+      nonZeroDays.forEach((days, index) => {
+        // Start with the last date
+        const sendDate = new Date(lastDate);
         
-        // Skip weekends and adjust for US holidays (simplified approach)
-        while (isWeekend(sendDate) || isUSHoliday(sendDate)) {
+        // Always use a consistent 2-business-day gap for all follow-ups
+        const daysToAdd = 2; // Consistent 2-business-day gap
+        
+        // Add business days (skipping weekends and holidays)
+        let businessDaysAdded = 0;
+        while (businessDaysAdded < daysToAdd) {
           sendDate.setDate(sendDate.getDate() + 1);
+          if (!isWeekend(sendDate) && !isUSHoliday(sendDate)) {
+            businessDaysAdded++;
+          }
         }
         
         schedule.push({
           category,
           followUpDay: days,
-          sendDate,
-          description: days === 0 ? 'Initial email' : `Follow-up #${followUpDays.indexOf(days)}`
+          sendDate: new Date(sendDate),
+          description: `Follow-up #${index + 1}`
         });
+        
+        // Update last date for next follow-up
+        lastDate = new Date(sendDate);
       });
     });
     
-    // Sort by date
-    schedule.sort((a, b) => a.sendDate - b.sendDate);
+    // Sort by date and then by follow-up day
+    schedule.sort((a, b) => {
+      // First sort by date
+      const dateCompare = a.sendDate - b.sendDate;
+      if (dateCompare !== 0) return dateCompare;
+      
+      // If same date, sort by follow-up day
+      return a.followUpDay - b.followUpDay;
+    });
+    
+    // Update the day numbers to be sequential based on unique dates
+    let uniqueDates = [];
+    schedule.forEach(item => {
+      const dateStr = item.sendDate.toISOString().split('T')[0];
+      if (!uniqueDates.includes(dateStr)) {
+        uniqueDates.push(dateStr);
+      }
+      // Update the followUpDay to be the index in uniqueDates
+      item.followUpDay = uniqueDates.indexOf(dateStr);
+    });
+    
     setScheduleData(schedule);
   }, [campaignStart, categories, followUpDays]);
   
@@ -160,12 +209,20 @@ const SchedulingCalendar = ({ campaignStart, categories, onScheduleApprove, isLo
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm font-medium text-gray-700">Follow-up sequence:</span>
           <div className="flex flex-wrap gap-2">
-            {followUpDays.map((day, index) => (
+            <div className="flex items-center text-sm">
+              <span className="px-2 py-1 bg-white border border-gray-300 rounded-md">
+                Initial Email
+              </span>
+              <ArrowRight className="mx-1 h-3 w-3 text-gray-400" />
+            </div>
+            
+            {/* Calculate and display the actual business day gaps */}
+            {Array.from(new Set(scheduleData.map(item => item.followUpDay))).sort((a, b) => a - b).filter(day => day > 0).map((day, index) => (
               <div key={index} className="flex items-center text-sm">
                 <span className="px-2 py-1 bg-white border border-gray-300 rounded-md">
-                  {day === 0 ? 'Day 0' : `Day ${day}`}
+                  {`Day ${day}`}
                 </span>
-                {index < followUpDays.length - 1 && (
+                {index < Array.from(new Set(scheduleData.map(item => item.followUpDay))).filter(d => d > 0).length - 1 && (
                   <ArrowRight className="mx-1 h-3 w-3 text-gray-400" />
                 )}
               </div>
@@ -194,7 +251,7 @@ const SchedulingCalendar = ({ campaignStart, categories, onScheduleApprove, isLo
                 
                 {/* Date indicator */}
                 <div className="flex-none w-16 text-right mr-8 text-sm text-gray-500 font-medium">
-                  Day {item.followUpDay}
+                  {item.description === 'Initial email' ? 'Initial' : `Day ${item.followUpDay}`}
                 </div>
                 
                 {/* Content */}

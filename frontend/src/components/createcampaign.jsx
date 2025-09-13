@@ -13,6 +13,14 @@ import {
   TabsTrigger,
   TabsContent,
 } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 // Dummy parser (replace with PapaParse or SheetJS)
 const parseCSV = (file, setContacts) => {
@@ -25,9 +33,9 @@ const parseCSV = (file, setContacts) => {
 
 export default function CampaignCreateModal({ onClose, onSave }) {
   const [step, setStep] = useState(1);
-
   const [campaignName, setCampaignName] = useState("");
   const [campaignDesc, setCampaignDesc] = useState("");
+  const [campaignType, setCampaignType] = useState("cold_outreach");
   const [contacts, setContacts] = useState([]);
 
   const handleFileUpload = (e) => {
@@ -40,6 +48,7 @@ export default function CampaignCreateModal({ onClose, onSave }) {
       id: Date.now(),
       name: campaignName,
       description: campaignDesc,
+      type: campaignType,
       contacts,
     };
     onSave(campaign); // send back to Dashboard
@@ -55,16 +64,33 @@ export default function CampaignCreateModal({ onClose, onSave }) {
         <CardContent>
           {step === 1 && (
             <div className="space-y-4">
-              <Input
-                placeholder="Campaign Name"
-                value={campaignName}
-                onChange={(e) => setCampaignName(e.target.value)}
-              />
-              <Input
-                placeholder="Campaign Description"
-                value={campaignDesc}
-                onChange={(e) => setCampaignDesc(e.target.value)}
-              />
+              <div className="space-y-2">
+                <Input
+                  placeholder="Campaign Name"
+                  value={campaignName}
+                  onChange={(e) => setCampaignName(e.target.value)}
+                />
+                <Input
+                  placeholder="Campaign Description"
+                  value={campaignDesc}
+                  onChange={(e) => setCampaignDesc(e.target.value)}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="campaign-type">Campaign Type</Label>
+                  <Select
+                    value={campaignType}
+                    onValueChange={setCampaignType}
+                  >
+                    <SelectTrigger id="campaign-type">
+                      <SelectValue placeholder="Select campaign type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cold_outreach">Cold Outreach</SelectItem>
+                      <SelectItem value="conference">In Person Meet</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <div className="flex justify-end">
                 <Button
                   onClick={() => setStep(2)}

@@ -4,6 +4,7 @@ import { Calendar, FileUp, Send } from 'lucide-react';
 const CampaignCreationForm = ({ onSubmit, isLoading }) => {
   const [campaignName, setCampaignName] = useState('');
   const [campaignDescription, setCampaignDescription] = useState('');
+  const [campaignType, setCampaignType] = useState('cold_outreach');
   const [campaignStartDate, setCampaignStartDate] = useState('');
   const [leadsFile, setLeadsFile] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -46,6 +47,7 @@ const CampaignCreationForm = ({ onSubmit, isLoading }) => {
     const formData = new FormData();
     formData.append('name', campaignName);
     formData.append('description', campaignDescription);
+    formData.append('scenario', campaignType);
     formData.append('start_date', campaignStartDate);
     formData.append('leads_file', leadsFile);
     
@@ -93,6 +95,22 @@ const CampaignCreationForm = ({ onSubmit, isLoading }) => {
               value={campaignDescription}
               onChange={(e) => setCampaignDescription(e.target.value)}
             />
+          </div>
+          
+          {/* Campaign Type */}
+          <div>
+            <label htmlFor="campaignType" className="block text-sm font-medium text-gray-700 mb-1">
+              Campaign Type
+            </label>
+            <select
+              id="campaignType"
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-primary focus:border-primary"
+              value={campaignType}
+              onChange={(e) => setCampaignType(e.target.value)}
+            >
+              <option value="cold_outreach">Cold Outreach</option>
+              <option value="conference">In Person Meet</option>
+            </select>
           </div>
           
           {/* Campaign Start Date */}

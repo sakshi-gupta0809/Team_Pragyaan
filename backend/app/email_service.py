@@ -69,12 +69,32 @@ class EmailService:
             self.db.rollback()
             raise
 
-    # Schedule follow-up email after X days
+    # Schedule follow-up email after X business days
     def schedule_followup(self, email_log: models.EmailLog, followup: models.FollowUp):
-        logger.info(f"Scheduling follow-up for email ID {email_log.id} with delay of {followup.delay_days} days")
+        logger.info(f"Scheduling follow-up for email ID {email_log.id} with delay of {followup.delay_days} business days")
         
         try:
-            followup_time = datetime.utcnow() + timedelta(days=followup.delay_days)
+            # Start with current date
+            current_date = datetime.utcnow()
+            business_days_added = 0
+            followup_time = current_date
+            
+            # Add business days (skip weekends)
+            while business_days_added < followup.delay_days:
+                followup_time = followup_time + timedelta(days=1)
+                # Skip weekends (5 = Saturday, 6 = Sunday)
+                if followup_time.weekday() < 5:
+                    business_days_added += 1
+            
+            # Check if the calculated date is a holiday
+            # This is a placeholder for holiday checking logic
+            # In a real implementation, you would check against a holiday API or database
+            is_holiday = self._is_holiday(followup_time)
+            
+            # If it's a holiday, move to the next business day
+            while is_holiday or followup_time.weekday() >= 5:
+                followup_time = followup_time + timedelta(days=1)
+                is_holiday = self._is_holiday(followup_time)
             
             schedule = models.Schedule(
                 send_time=followup_time,
@@ -86,12 +106,41 @@ class EmailService:
             self.db.commit()
             self.db.refresh(schedule)
             
-            logger.info(f"Follow-up scheduled successfully with schedule ID: {schedule.id} for {followup_time.isoformat()}")
+            logger.info(f"Follow-up scheduled successfully with schedule ID: {schedule.id} for {followup_time.isoformat()} ({business_days_added} business days after {current_date.isoformat()})")
             return schedule
         except Exception as e:
             logger.error(f"Error scheduling follow-up: {str(e)}")
             self.db.rollback()
             raise
+    
+    # Helper method to check if a date is a holiday
+    def _is_holiday(self, date):
+        """
+        Check if a date is a US holiday.
+        This is a placeholder implementation. In a real system, you would:
+        1. Use a holiday API
+        2. Check against a database of holidays
+        3. Use a library like holidays.py
+        
+        Returns:
+            bool: True if the date is a holiday, False otherwise
+        """
+        # List of common US holidays (month, day) - simplified for example
+        us_holidays = [
+            (1, 1),    # New Year's Day
+            (1, 15),   # Martin Luther King Jr. Day (approximate)
+            (2, 15),   # Presidents' Day (approximate)
+            (5, 31),   # Memorial Day (approximate)
+            (7, 4),    # Independence Day
+            (9, 5),    # Labor Day (approximate)
+            (10, 10),  # Columbus Day (approximate)
+            (11, 11),  # Veterans Day
+            (11, 25),  # Thanksgiving (approximate)
+            (12, 25),  # Christmas Day
+        ]
+        
+        # Check if the date matches any holiday
+        return (date.month, date.day) in us_holidays
 
     # AI-based engagement scoring (placeholder)
     def predict_success(self, email_log: models.EmailLog):

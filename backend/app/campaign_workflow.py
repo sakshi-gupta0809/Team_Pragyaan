@@ -518,14 +518,18 @@ class CampaignWorkflow:
                 # Schedule follow-ups with appropriate gaps
                 last_date = start_date
                 
-                for step in sorted_steps[1:]:  # Skip step 1 (initial email)
+                for i, step in enumerate(sorted_steps[1:]):  # Skip step 1 (initial email)
                     followup_email = contact_emails[step]
                     
                     # Calculate send date based on follow-up gap (minimum 2)
                     gap_days = campaign.followup_gap_days or 2
                     if gap_days < 2:
                         gap_days = 2
-                    followup_date = add_business_days(last_date, gap_days)
+                        
+                    # For the first follow-up, always use the initial email date as reference
+                    # For subsequent follow-ups, use the previous follow-up date
+                    reference_date = start_date if i == 0 else last_date
+                    followup_date = add_business_days(reference_date, gap_days)
                     
                     # Create schedule
                     followup_schedule = models.Schedule(

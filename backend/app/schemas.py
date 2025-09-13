@@ -224,7 +224,7 @@ class Schedule(BaseModel):
 
 # -------------------- FollowUp --------------------
 class FollowUpCreate(BaseModel):
-    delay_days: int = 3
+    delay_days: int = 2  # Changed from 3 to 2 to ensure 2 business days between emails
     subject: Optional[str] = None
     body: str
     parent_email_id: Optional[int] = None
