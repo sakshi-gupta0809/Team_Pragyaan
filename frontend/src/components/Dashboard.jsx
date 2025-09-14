@@ -134,7 +134,7 @@ const Dashboard = ({ onLogout }) => {
     { id: 'contacts', name: 'Contacts', icon: Users, active: activeSection === 'contacts' },
     { id: 'neutrino', name: 'Create Campaign', icon: PlusCircle, active: activeSection === 'neutrino' },
     { id: 'profile', name: 'Profile', icon: UserCircle, active: activeSection === 'profile' }
-  ];
+  ])
 
   const generalItems = [
     { id: 'settings', name: 'Settings', icon: Settings },
