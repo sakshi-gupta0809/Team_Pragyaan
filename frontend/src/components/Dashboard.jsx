@@ -3,20 +3,23 @@ import {
   Mail, Users, BarChart3, Settings, HelpCircle, LogOut,
   Search, Bell, Plus, Upload, TrendingUp, Eye, MousePointer, MoreVertical, Pause, Play, Square,
   Send, ChevronLeft, ChevronRight, PlusCircle, RefreshCw, ExternalLink, Clock, User, ArrowUpRight,
-  Calendar
+  Calendar, UserCircle
 } from 'lucide-react';
 import ContactsPage from './ContactsPage';
 import CampaignsInterface from './CampaignsInterface';
 import NeutrinoCampaignWorkflow from './neutrino/NeutrinoCampaignWorkflow';
+import Profile from './Profile';
 
-const Dashboard = () => {
+const Dashboard = ({ onLogout }) => {
   const [activeSection, setActiveSection] = useState('dashboard');
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [activeTimer, setActiveTimer] = useState(true);
   const [timerTime, setTimerTime] = useState('01:24:08');
   
   // Calendar-related state
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState([]);
+  const [eventsLoaded, setEventsLoaded] = useState(false);
   const [showNewCampaignModal, setShowNewCampaignModal] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState('');
   const [newCampaignDescription, setNewCampaignDescription] = useState('');
@@ -31,6 +34,7 @@ const Dashboard = () => {
   // Enhanced calendar functionality
   const [activeDate, setActiveDate] = useState(new Date());
   const [showAddEventModal, setShowAddEventModal] = useState(false);
+  const [showAllEventsModal, setShowAllEventsModal] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventStartTime, setNewEventStartTime] = useState('09:00');
   const [newEventEndTime, setNewEventEndTime] = useState('10:00');
@@ -128,8 +132,9 @@ const Dashboard = () => {
     { id: 'dashboard', name: 'Dashboard', icon: BarChart3, active: activeSection === 'dashboard' },
     { id: 'campaigns', name: 'Campaigns', icon: Mail, badge: stats.total_campaigns.toString(), active: activeSection === 'campaigns' },
     { id: 'contacts', name: 'Contacts', icon: Users, active: activeSection === 'contacts' },
-    { id: 'neutrino', name: 'Create Campaign', icon: PlusCircle, active: activeSection === 'neutrino' }
-  ]);
+    { id: 'neutrino', name: 'Create Campaign', icon: PlusCircle, active: activeSection === 'neutrino' },
+    { id: 'profile', name: 'Profile', icon: UserCircle, active: activeSection === 'profile' }
+  ];
 
   const generalItems = [
     { id: 'settings', name: 'Settings', icon: Settings },
@@ -154,7 +159,7 @@ const Dashboard = () => {
   };
 
   // Add new event
-  const handleAddEvent = () => {
+  const handleAddEvent = async () => {
     if (!newEventTitle) {
       showToast("Event title is required", "error");
       return;
@@ -163,7 +168,7 @@ const Dashboard = () => {
     const formattedTime = `${newEventStartTime} — ${newEventEndTime}`;
     
     const newEvent = {
-      id: Date.now(), // Use timestamp for unique ID
+      id: Date.now(), // temp id; replaced by server id
       title: newEventTitle,
       time: formattedTime,
       type: newEventType,
@@ -171,41 +176,42 @@ const Dashboard = () => {
       date: new Date(activeDate)
     };
 
-    setEvents([...events, newEvent]);
+    // Persist to backend
+    try {
+      const token = window.localStorage.getItem('token');
+      const res = await fetch('/api/events/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: newEvent.title,
+          date: newEvent.date.toISOString(),
+          start_time: newEventStartTime,
+          end_time: newEventEndTime,
+          type: newEvent.type,
+          color: newEvent.color
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to save event');
+      setEvents([...events, { ...newEvent, id: data.id }]);
+      showToast(`Event "${newEventTitle}" added successfully!`, "success");
+    } catch (e) {
+      // Fallback to local add if server fails
+      setEvents([...events, newEvent]);
+      showToast('Saved locally (offline).', 'success');
+    }
+
     setNewEventTitle('');
     setNewEventStartTime('09:00');
     setNewEventEndTime('10:00');
     setShowAddEventModal(false);
-    showToast(`Event "${newEventTitle}" added successfully!`, "success");
   };
 
-  // Edit existing event
-  const handleEditEvent = () => {
-    if (!currentEvent) return;
-    if (!newEventTitle) {
-      showToast("Event title is required", "error");
-      return;
-    }
-
-    const formattedTime = `${newEventStartTime} — ${newEventEndTime}`;
-    
-    const updatedEvents = events.map(event => {
-      if (event.id === currentEvent.id) {
-        return {
-          ...event,
-          title: newEventTitle,
-          time: formattedTime,
-          type: newEventType,
-          color: newEventColor
-        };
-      }
-      return event;
-    });
-
-    setEvents(updatedEvents);
-    setShowEditEventModal(false);
-    showToast(`Event "${newEventTitle}" updated successfully!`, "success");
-  };
+  // Edit existing event (local-only fallback function replaced by async handler below)
 
   // Delete event
   const handleDeleteEvent = (eventId) => {
@@ -228,41 +234,62 @@ const Dashboard = () => {
     setShowEditEventModal(true);
   };
 
-  // Load initial events
+  // Load initial events from localStorage (with demos as fallback)
   useEffect(() => {
-    // Generate dates for the sample events (today and upcoming days)
+    try {
+      const cached = window.localStorage.getItem('calendarEvents');
+      if (cached) {
+        const parsed = JSON.parse(cached).map(e => ({ ...e, date: new Date(e.date) }));
+        setEvents(parsed);
+        // Set active date to the nearest upcoming event, or today if none
+        const today = new Date();
+        const upcoming = parsed
+          .slice()
+          .sort((a,b) => new Date(a.date) - new Date(b.date))
+          .find(e => new Date(e.date) >= new Date(today.setHours(0,0,0,0)));
+        if (upcoming) {
+          setActiveDate(new Date(upcoming.date));
+        }
+        setEventsLoaded(true);
+        return;
+      }
+    } catch {}
     const today = new Date();
     const tomorrow = new Date();
     tomorrow.setDate(today.getDate() + 1);
     const dayAfterTomorrow = new Date();
     dayAfterTomorrow.setDate(today.getDate() + 2);
-    
     setEvents([
-      {
-        id: 1,
-        title: 'Email Campaign Launch',
-        time: '09:00 AM — 10:00 AM',
-        type: 'meeting',
-        color: 'bg-emerald-500',
-        date: today
-      },
-      {
-        id: 2,
-        title: 'Content Review',
-        time: '11:00 AM — 12:30 PM',
-        type: 'work',
-        color: 'bg-amber-400',
-        date: tomorrow
-      },
-      {
-        id: 3,
-        title: 'Team Strategy Session',
-        time: '02:00 PM — 03:30 PM',
-        type: 'development',
-        color: 'bg-rose-400',
-        date: dayAfterTomorrow
-      }
+      { id: 1, title: 'Email Campaign Launch', time: '09:00 AM — 10:00 AM', type: 'meeting', color: 'bg-emerald-500', date: today },
+      { id: 2, title: 'Content Review', time: '11:00 AM — 12:30 PM', type: 'work', color: 'bg-amber-400', date: tomorrow },
+      { id: 3, title: 'Team Strategy Session', time: '02:00 PM — 03:30 PM', type: 'development', color: 'bg-rose-400', date: dayAfterTomorrow }
     ]);
+    setEventsLoaded(true);
+  }, []);
+
+  // Persist events to localStorage on change and fetch from backend on login
+  useEffect(() => {
+    if (!eventsLoaded) return;
+    try {
+      const toSave = events.map(e => ({ ...e, date: e.date instanceof Date ? e.date.toISOString() : e.date }));
+      window.localStorage.setItem('calendarEvents', JSON.stringify(toSave));
+    } catch {}
+  }, [events, eventsLoaded]);
+
+  useEffect(() => {
+    // Try load from backend if token present
+    (async () => {
+      const token = window.localStorage.getItem('token');
+      if (!token) return;
+      try {
+        const res = await fetch('/api/events/', { headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) return;
+        const data = await res.json();
+        const mapped = data.map(d => ({ id: d.id, title: d.title, time: `${d.start_time || ''}${d.end_time ? ' — ' + d.end_time : ''}`.trim(), type: d.type, color: d.color || 'bg-emerald-500', date: new Date(d.date) }));
+        setEvents(mapped);
+        setEventsLoaded(true);
+      } catch {}
+    })();
   }, []);
 
   // Fetch live campaign stats for the last used campaign
@@ -352,7 +379,7 @@ const Dashboard = () => {
             : error.message;
           
           console.error(`Error fetching ${name}:`, errorMessage);
-          showToast(`${name} data unavailable. Using demo data.`, "error");
+          // Quiet fallback: log but do not show noisy toast on initial load
           
           // Provide appropriate fallback data based on the endpoint type
           if (name === "campaigns") {
@@ -728,7 +755,53 @@ const handleAddContact = async () => {
     setIsLoading(false);
   }
 };
-  // This is a duplicate function that was removed
+  // Save edits to event
+  const handleEditEvent = async () => {
+    if (!currentEvent) return;
+    const updated = {
+      title: newEventTitle,
+      date: new Date(activeDate).toISOString(),
+      start_time: newEventStartTime,
+      end_time: newEventEndTime,
+      type: newEventType,
+      color: newEventColor
+    };
+    try {
+      const token = window.localStorage.getItem('token');
+      const res = await fetch(`/api/events/${currentEvent.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updated)
+      });
+      if (!res.ok) throw new Error('Failed to update');
+      setEvents(prev => prev.map(ev => ev.id === currentEvent.id ? {
+        ...ev,
+        title: newEventTitle,
+        time: `${newEventStartTime} — ${newEventEndTime}`,
+        type: newEventType,
+        color: newEventColor,
+        date: new Date(activeDate)
+      } : ev));
+      setShowEditEventModal(false);
+      showToast('Event updated', 'success');
+    } catch (e) {
+      // Local fallback
+      setEvents(prev => prev.map(ev => ev.id === currentEvent.id ? {
+        ...ev,
+        title: newEventTitle,
+        time: `${newEventStartTime} — ${newEventEndTime}`,
+        type: newEventType,
+        color: newEventColor,
+        date: new Date(activeDate)
+      } : ev));
+      setShowEditEventModal(false);
+      showToast('Updated locally (offline).', 'success');
+    }
+  }
 
   // Determine current page title
   const getPageTitle = () => {
@@ -758,6 +831,8 @@ const handleAddContact = async () => {
         return <CampaignsInterface />;
       case 'contacts':
         return <ContactsPage />;
+      case 'profile':
+        return <Profile />;
       case 'settings':
         return <SectionCard title="Settings" data={[]} icon={<Settings className="w-16 h-16 text-gray-300" />} />;
       case 'help':
@@ -823,10 +898,26 @@ const handleAddContact = async () => {
         </div>
 {/* Navigation */}
 <nav className="mt-4 px-4">
-  <MenuSection title="MAIN MENU" items={navigationItems} activeSection={activeSection} setActiveSection={setActiveSection} />
-  <MenuSection title="GENERAL" items={generalItems} activeSection={activeSection} setActiveSection={setActiveSection} />
+  <MenuSection title="MAIN MENU" items={navigationItems} activeSection={activeSection} setActiveSection={setActiveSection} onLogout={() => setShowLogoutConfirm(true)} />
+  <MenuSection title="GENERAL" items={generalItems} activeSection={activeSection} setActiveSection={setActiveSection} onLogout={() => setShowLogoutConfirm(true)} />
 </nav>
       </div>
+
+      {/* Logout Confirm Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 animate-[fadeIn_.2s_ease-out]" onClick={() => setShowLogoutConfirm(false)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 border border-gray-100 animate-[popIn_.18s_ease-out]">
+            <div className="text-lg font-semibold text-gray-900 mb-1">Log out?</div>
+            <div className="text-sm text-gray-600 mb-6">You will need to log in again to access the dashboard.</div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowLogoutConfirm(false)} className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+              <button onClick={() => { setShowLogoutConfirm(false); onLogout && onLogout(); }} className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700">Log out</button>
+            </div>
+          </div>
+          <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes popIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 p-4 w-full overflow-x-auto">
@@ -989,46 +1080,46 @@ const handleAddContact = async () => {
             
             {/* Right Content (Calendar) - Reduced size */}
             {activeSection === 'dashboard' && (
-              <div className="w-2/5 flex-shrink-0 max-h-[600px] overflow-y-auto">
+              <div className="w-1/3 flex-shrink-0 ml-4 md:ml-6 lg:ml-8">
                 
                 {/* Date Header */}
-                <div className="mb-6">
+                <div className="mb-4">
                   <div className="flex justify-between items-center">
                     <div>
-                      <h2 className="text-3xl font-bold">
+                      <h2 className="text-2xl font-bold">
                         {formatDate(selectedDate).month}, {formatDate(selectedDate).day} <span className="font-normal text-gray-500">{formatDate(selectedDate).dayName}</span>
                       </h2>
                     </div>
                     <div className="flex">
                       <button
                         onClick={goToPreviousMonth}
-                        className="p-2 text-gray-400 hover:text-gray-600"
+                        className="p-1.5 text-gray-400 hover:text-gray-600"
                       >
-                        <ChevronLeft className="w-5 h-5" />
+                        <ChevronLeft className="w-4 h-4" />
                       </button>
                       <button
                         onClick={goToNextMonth}
-                        className="p-2 text-gray-400 hover:text-gray-600"
+                        className="p-1.5 text-gray-400 hover:text-gray-600"
                       >
-                        <ChevronRight className="w-5 h-5" />
+                        <ChevronRight className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
                 </div>
                 
-                {/* Calendar - Reduced size */}
-                <div className="mb-4">
-                  {/* Days of week - Reduced size */}
-                  <div className="grid grid-cols-7 mb-1">
+                {/* Calendar */}
+                <div className="mb-6">
+                  {/* Days of week */}
+                  <div className="grid grid-cols-7 mb-1.5">
                     {weekDays.map((day, index) => (
-                      <div key={index} className="text-center text-xs text-gray-500 py-1">
+                      <div key={index} className="text-center text-xs text-gray-500 py-1.5">
                         {day}
                       </div>
                     ))}
                   </div>
                   
-                  {/* Calendar grid - Reduced size */}
-                  <div className="grid grid-cols-7 gap-1">
+                  {/* Calendar grid */}
+                  <div className="grid grid-cols-7 gap-1.5">
                     {(() => {
                       // Get first day of the month
                       const firstDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
@@ -1129,18 +1220,18 @@ const handleAddContact = async () => {
                           >
                             <div className="relative">
                               {day.highlight ? (
-                                <div className={`w-6 h-6 rounded-full ${day.highlightColor} text-white mx-auto flex items-center justify-center text-xs`}>
+                                <div className={`w-7 h-7 rounded-full ${day.highlightColor} text-white mx-auto flex items-center justify-center`}>
                                   {day.day}
                                 </div>
                               ) : (
-                                <div className="w-6 h-6 mx-auto flex items-center justify-center text-xs">
+                                <div className="w-7 h-7 mx-auto flex items-center justify-center">
                                   {day.day}
                                 </div>
                               )}
                               
                               {/* Event indicator dot */}
                               {day.currentMonth && dayHasEvents && (
-                                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-gray-400 rounded-full"></div>
+                                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-emerald-500 rounded-full"></div>
                               )}
                             </div>
                           </div>
@@ -1150,9 +1241,9 @@ const handleAddContact = async () => {
                   </div>
                 </div>
                 
-                {/* Selected Date Information - Reduced size */}
-                <div className="mt-4 mb-2">
-                  <h3 className="text-base font-semibold text-gray-700 mb-1">
+                {/* Selected Date Information */}
+                <div className="mt-4 mb-3">
+                  <h3 className="text-lg font-semibold text-gray-700 mb-2">
                     Events for {formatDate(activeDate).month} {formatDate(activeDate).day}, {formatDate(activeDate).year}
                   </h3>
                   
@@ -1163,6 +1254,12 @@ const handleAddContact = async () => {
                   >
                     <PlusCircle className="w-4 h-4 mr-1" />
                     Add Event
+                  </button>
+                  <button
+                    onClick={() => setShowAllEventsModal(true)}
+                    className="ml-3 text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50"
+                  >
+                    View All Events
                   </button>
                 </div>
                 
@@ -1181,21 +1278,48 @@ const handleAddContact = async () => {
                       >
                         <div className="flex">
                           <div className={`w-8 h-8 rounded-full ${event.color} mr-2 flex items-center justify-center`}>
-                            {event.type === 'meeting' ? (
+                            {String(event.type).toLowerCase() === 'meeting' ? (
                               <User className="w-4 h-4 text-white" />
-                            ) : event.type === 'work' ? (
+                            ) : String(event.type).toLowerCase() === 'work' ? (
                               <PlusCircle className="w-4 h-4 text-white" />
                             ) : (
                               <Code className="w-4 h-4 text-white" />
                             )}
                           </div>
                           <div>
-                            <h4 className="font-medium">{event.title}</h4>
+                            <h4 className="font-medium">{event.title} <span className="text-xs text-gray-500">• {event.type}</span></h4>
                             <div className="text-xs text-gray-500">{event.time}</div>
                           </div>
-                          <div className="ml-auto">
-                            <button className="text-gray-400 hover:text-gray-600">
-                              <MoreVertical className="w-4 h-4" />
+                          <div className="ml-auto flex items-center gap-2">
+                            <button
+                              className="text-xs font-medium px-2 py-1 rounded-lg border border-red-200 text-red-700 bg-white hover:bg-red-50 hover:border-red-300 transition transform hover:scale-[1.03] active:scale-[.98]"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!confirm('Delete this event?')) return;
+                                try {
+                                  const token = window.localStorage.getItem('token');
+                                  await fetch(`/api/events/${event.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                                } catch {}
+                                setEvents(prev => prev.filter(ev => ev.id !== event.id));
+                              }}
+                            >
+                              Delete
+                            </button>
+                            <button
+                              className="text-xs font-medium px-2 py-1 rounded-lg border hover:bg-gray-50 transition transform hover:scale-[1.03] active:scale-[.98]"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCurrentEvent(event);
+                                setNewEventTitle(event.title);
+                                const parts = (event.time || '').split(' — ');
+                                setNewEventStartTime(parts[0] || '09:00');
+                                setNewEventEndTime(parts[1] || '10:00');
+                                setNewEventType(event.type || 'Meeting');
+                                setNewEventColor(event.color || 'bg-emerald-500');
+                                setShowEditEventModal(true);
+                              }}
+                            >
+                              Edit
                             </button>
                           </div>
                         </div>
@@ -1393,6 +1517,62 @@ const handleAddContact = async () => {
           </div>
         </div>
       </div>
+      {/* All Events Modal */}
+      {showAllEventsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 shadow-lg w-full max-w-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold">All Scheduled Events</h3>
+              <button onClick={() => setShowAllEventsModal(false)} className="px-3 py-1.5 rounded-lg border hover:bg-gray-50">Close</button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto divide-y">
+              {events
+                .slice()
+                .sort((a,b) => new Date(a.date) - new Date(b.date))
+                .map(ev => (
+                  <div key={ev.id} className="py-3 flex items-center gap-3">
+                    <span className={`inline-block w-3 h-3 rounded-full ${ev.color}`}></span>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-gray-900">{ev.title} <span className="text-xs text-gray-500">• {ev.type}</span></div>
+                      <div className="text-xs text-gray-500">{new Date(ev.date).toDateString()} • {ev.time}</div>
+                    </div>
+                    <div className="flex items-center gap-2 mr-3">
+                      <button
+                        className="text-xs font-semibold tracking-wide px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition transform hover:scale-[1.03] active:scale-[.98]"
+                        onClick={() => {
+                          setCurrentEvent(ev);
+                          setNewEventTitle(ev.title);
+                          const parts = (ev.time || '').split(' — ');
+                          setNewEventStartTime(parts[0] || '09:00');
+                          setNewEventEndTime(parts[1] || '10:00');
+                          setNewEventType(ev.type || 'Meeting');
+                          setNewEventColor(ev.color || 'bg-emerald-500');
+                          setShowAllEventsModal(false);
+                          setShowEditEventModal(true);
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="text-xs font-semibold tracking-wide px-2.5 py-1.5 rounded-lg border border-red-200 text-red-700 bg-white hover:bg-red-50 hover:border-red-300 transition transform hover:scale-[1.03] active:scale-[.98]"
+                        onClick={async () => {
+                          if (!confirm('Delete this event?')) return;
+                          try {
+                            const token = window.localStorage.getItem('token');
+                            await fetch(`/api/events/${ev.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                          } catch {}
+                          setEvents(prev => prev.filter(x => x.id !== ev.id));
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1419,7 +1599,7 @@ export default Dashboard;
 
 // ================== Reusable Components ==================
 
-const MenuSection = ({ title, items, activeSection, setActiveSection }) => (
+const MenuSection = ({ title, items, activeSection, setActiveSection, onLogout }) => (
   <>
     <div className="px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-3">
       {title}
@@ -1428,7 +1608,13 @@ const MenuSection = ({ title, items, activeSection, setActiveSection }) => (
       {items.map(item => (
         <button
           key={item.id}
-          onClick={() => setActiveSection(item.id)}
+          onClick={() => {
+            if (item.id === 'logout' && onLogout) {
+              onLogout();
+            } else {
+              setActiveSection(item.id)
+            }
+          }}
           className={`w-full flex items-center px-3 py-2.5 rounded-xl text-left transition-all duration-200 ${
             activeSection === item.id
               ? 'bg-orange-50 text-orange-500 border-b-2 border-orange-500 shadow-sm'

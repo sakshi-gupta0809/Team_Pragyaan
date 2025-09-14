@@ -9,9 +9,24 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     email = Column(String, unique=True, index=True)
+    password_hash = Column(String, nullable=True)
+    
+    # Profile fields
+    first_name = Column(String, nullable=True)
+    last_name = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    company = Column(String, nullable=True)
+    job_title = Column(String, nullable=True)
+    bio = Column(Text, nullable=True)
+    avatar_url = Column(String, nullable=True)
+    timezone = Column(String, default="UTC", nullable=True)
+    language = Column(String, default="en", nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     campaigns = relationship("Campaign", back_populates="owner")
+    events = relationship("Event", back_populates="owner", cascade="all, delete-orphan")
 
 
 # -------------------- Contact --------------------
@@ -141,3 +156,19 @@ class FollowUp(Base):
 
     parent_email_id = Column(Integer, ForeignKey("email_logs.id"))
     parent_email = relationship("EmailLog")
+
+
+# -------------------- Calendar Event --------------------
+class Event(Base):
+    __tablename__ = "events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    date = Column(DateTime(timezone=True), nullable=False)
+    start_time = Column(String, nullable=True)  # e.g., "09:00 AM"
+    end_time = Column(String, nullable=True)
+    type = Column(String, nullable=True)
+    color = Column(String, nullable=True)
+
+    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
+    owner = relationship("User", back_populates="events")

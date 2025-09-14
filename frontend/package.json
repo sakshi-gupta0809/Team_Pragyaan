@@ -12,7 +12,8 @@
   "dependencies": {
     "lucide-react": "^0.543.0",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "framer-motion": "^11.3.30"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",

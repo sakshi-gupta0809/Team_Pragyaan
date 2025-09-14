@@ -42,15 +42,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from . import models, database, routes
+from .auth import router as auth_router
 from .logging_utils import log_requests
 from .tracking import router as tracking_router
 from .api_neutrino import router as neutrino_router
 from .scheduler import router as scheduler_router, init_scheduler, shutdown_scheduler
 from .api_workflow import router as workflow_router
+from .api_events import router as events_router
 
 # Import the local API routers (moved into app directory to avoid import issues)
 from .api_campaigns import router as campaigns_router
 from .api_contacts import router as contacts_api_router
+from .api_profile import router as profile_router
 from .campaign_workflow import CampaignWorkflow
 from .contact_categorization import categorize_designation, CONTACT_CATEGORIES
 from .template_generation import TemplateGenerator, CAMPAIGN_SCENARIOS
@@ -122,6 +125,9 @@ app.include_router(contacts_api_router, prefix="/api", tags=["contacts"])
 app.include_router(campaigns_router, prefix="/api", tags=["campaigns"])
 app.include_router(workflow_router, prefix="/api", tags=["workflow"])
 app.include_router(neutrino_router, prefix="/api/neutrino", tags=["neutrino"])
+app.include_router(profile_router, prefix="/api", tags=["profile"])
+app.include_router(events_router)
+app.include_router(auth_router)
 
 # Add a debug endpoint at the root level
 @app.get("/api/debug")
