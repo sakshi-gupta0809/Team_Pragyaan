@@ -1,7 +1,7 @@
-Subject Line: Accelerate R&D and Reduce Costs with Data & AI   
- 
- 
-Hi {{First Name}},  
+Accelerate R&D and Reduce Costs with Data & AI
+ 
+ 
+Hi {{First Name}},
   
 Just following up on my earlier note. 
   

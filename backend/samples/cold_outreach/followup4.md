@@ -1,6 +1,6 @@
-Subject Line: Boost Patient Engagement & Access with Salesforce   
- 
-Hi {{Name}}, 
+Boost Patient Engagement & Access with Salesforce
+ 
+Hi {{Name}},
   
 Circling back one last time. 
   

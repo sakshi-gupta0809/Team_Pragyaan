@@ -1,5 +1,8 @@
-Hi {{First Name}},  
-  
+Streamline Specialty Pharmacy Operations with Smart Automation
+
+  
+Hi {{First Name}},
+  
 Workflow gaps and staffing issues are slowing down specialty pharmacies—and hitting drug delivery and patient engagement hard. 
  
 Neutrino’s smart automation tools help streamline operations, cut manual work, and free up your team for high-impact tasks. We've partnered with top players to drive results through AI, cloud, and custom automation.  

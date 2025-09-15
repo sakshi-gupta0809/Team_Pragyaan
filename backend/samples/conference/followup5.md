@@ -1,4 +1,4 @@
-Subject Line: {{firstName}} , Up for a Coffee? Lets Talk about Custom Application Development for Pharma Innovation in OH
+{{firstName}}, Up for a Coffee? Let's Talk About Custom Application Development for Pharma Innovation in OH
 
 Hi {{firstName}} , 
   

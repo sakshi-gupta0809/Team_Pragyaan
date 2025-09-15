@@ -1,5 +1,8 @@
-Hi {{First Name}},  
-  
+Accelerate Healthcare Innovation with AI and Automation Solutions
+
+  
+Hi {{First Name}},
+  
 Kudos on the incredible strides you’re making in healthcare! 
   
 Are manual processes, data silos, and compliance hurdles slowing your growth?  

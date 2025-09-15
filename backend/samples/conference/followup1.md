@@ -1,4 +1,4 @@
-Subject Line: {{firstName}} , Quick catch up at the HLTH 25 or virtually?
+{{firstName}}, Quick Catch Up at the HLTH 25 or Virtually?
 
 Hi {{firstName}},  
   

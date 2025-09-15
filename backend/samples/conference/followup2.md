@@ -1,4 +1,4 @@
-Subject Line: {{firstName}} , In-Person Meeting at the HLTH 25
+{{firstName}}, In-Person Meeting at the HLTH 25
 
 Hi {{firstName}} ,  
   

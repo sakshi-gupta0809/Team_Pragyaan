@@ -1,6 +1,6 @@
-Subject Line: Custom Application Development for Pharma Innovation   
- 
-Hi {{First Name}}, 
+Custom Application Development for Pharma Innovation
+ 
+Hi {{First Name}},
   
 I’ve reached out a few times and just wanted to reconnect. At Neutrino, we specialize in helping specialty pharmacy teams like yours improve patient care and boost efficiency with custom digital engineering and automation. 
   

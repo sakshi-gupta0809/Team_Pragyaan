@@ -1,4 +1,4 @@
-Subject Line: {{first_name}} , In-Person Meeting Request to Boost hub performance with AI-powered automation and Patient Experience
+{{first_name}}, In-Person Meeting Request to Boost Hub Performance with AI-Powered Automation
 
 Hi {{first_name}},
 

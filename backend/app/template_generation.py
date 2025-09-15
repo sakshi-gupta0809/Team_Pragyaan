@@ -297,9 +297,82 @@ Instructions:
                 else:
                     # Extract first line as subject if no explicit subject
                     lines = response_content.split('\n')
-                    personalized_subject = lines[0].strip()
+                    first_line = lines[0].strip()
                     
-                # Extract body (everything after subject or first line)
+                    # Check if first line looks like a greeting (Hi, Hello, etc.) or contains placeholders
+                    if re.match(r'^(Hi|Hello|Dear|Hey)\s+', first_line) or '{{' in first_line:
+                        # If first line is a greeting or has placeholders, generate a subject using LLM
+                        try:
+                            # Create a subject generation prompt
+                            subject_prompt = f"""
+                            Generate a concise, engaging email subject line (max 10 words) for an email with this content:
+                            
+                            {response_content[:500]}...
+                            
+                            The subject should be business-appropriate, directly related to the content, and not include
+                            any prefixes like 'Subject:' or 'Re:'. Just output the subject line text.
+                            """
+                            
+                            # Call OpenAI API for subject generation
+                            subject_response = client.chat.completions.create(
+                                model="gpt-3.5-turbo",
+                                messages=[
+                                    {"role": "system", "content": "You generate concise, effective email subject lines."},
+                                    {"role": "user", "content": subject_prompt}
+                                ],
+                                temperature=0.7,
+                                max_tokens=50
+                            )
+                            
+                            # Extract the subject from the response
+                            generated_subject = subject_response.choices[0].message.content.strip()
+                            
+                            # Remove any "Subject:" prefix if the model accidentally included it
+                            generated_subject = re.sub(r'^(?i)Subject:\s*', '', generated_subject)
+                            
+                            # Use the generated subject
+                            personalized_subject = generated_subject
+                            
+                            logger.info(f"Generated subject via LLM: {personalized_subject}")
+                            
+                        except Exception as e:
+                            logger.warning(f"Failed to generate subject with LLM: {str(e)}")
+                            
+                            # Extract key topics from the email content to use in subject
+                            # This is a non-hardcoded approach that adapts to the actual content
+                            topics = []
+                            content_sample = response_content[:1000].lower()
+                            
+                            # Check for common business themes in the content
+                            if "automation" in content_sample:
+                                topics.append("Automation")
+                            if "ai" in content_sample or "artificial intelligence" in content_sample:
+                                topics.append("AI")
+                            if "data" in content_sample:
+                                topics.append("Data")
+                            if "healthcare" in content_sample:
+                                topics.append("Healthcare")
+                            if "pharma" in content_sample:
+                                topics.append("Pharma")
+                            if "patient" in content_sample:
+                                topics.append("Patient Care")
+                            if "innovation" in content_sample:
+                                topics.append("Innovation")
+                            
+                            # Use the identified topics to create a subject
+                            if topics:
+                                # Take up to 3 topics for the subject
+                                topic_text = " & ".join(topics[:3])
+                                personalized_subject = f"{topic_text} Solutions for Your Business"
+                            else:
+                                # Very generic fallback with no hardcoded specifics
+                                personalized_subject = "Neutrino Business Solutions"
+                    else:
+                        # Use first line as subject
+                        personalized_subject = first_line
+                
+                # Extract body (everything after subject or greeting)
+                subject_match = re.search(r'(?i)Subject:?\s*(.+?)(?:\n|$)', response_content)
                 if subject_match:
                     subject_end = subject_match.end()
                     personalized_body = response_content[subject_end:].strip()

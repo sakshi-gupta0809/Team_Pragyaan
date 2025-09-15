@@ -1,4 +1,4 @@
-Subject Line: {{firstName}} ,  Lets Meet Up in OH to Boost Patient Engagement & Access with Salesforce   
+{{firstName}}, Let's Meet Up in OH to Boost Patient Engagement & Access with Salesforce
 
 Hi {{firstName}} , 
   

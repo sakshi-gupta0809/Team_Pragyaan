@@ -1,7 +1,7 @@
-Subject Line: Stay Ahead of Compliance and Data Security Risks  in a Digital World with AI and Automation 
- 
- 
-Hi {{First Name}},  
+Stay Ahead of Compliance and Data Security Risks in a Digital World with AI and Automation
+ 
+ 
+Hi {{First Name}},
   
 Just looping back quickly. 
   

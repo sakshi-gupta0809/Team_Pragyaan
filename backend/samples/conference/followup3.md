@@ -1,4 +1,4 @@
-Subject Line: {{firstName}} , Lets Catch up at the HLTH25 or Virtually
+{{firstName}}, Let's Catch Up at the HLTH25 or Virtually
 
 Hi {{firstName}} ,  
   
