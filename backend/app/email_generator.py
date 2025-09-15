@@ -98,8 +98,10 @@ class EmailGenerator:
             
             # Call OpenAI API using the client format
             try:
+                model_name = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+                logger.info(f"Using OpenAI model: {model_name}")
                 response = self.client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model=model_name,
                     messages=[
                         {"role": "system", "content": "You are an expert at generating realistic business email addresses based on professional naming conventions."},
                         {"role": "user", "content": prompt}

@@ -1,6 +1,6 @@
-{{first_name}}, In-Person Meeting Request to Boost Hub Performance with AI-Powered Automation
+Subject Line: {{firstName}} , In-Person Meeting Request to Boost hub performance with AI-powered automation and Patient Experience
 
-Hi {{first_name}},
+Hi {{firstName}},  
 
 
 Kudos on the incredible strides you’re making in healthcare! I am reaching out on behalf of our Head HealthTech Solutions - Abhi as he will in your area in the last week of Oct (23rd to 29th) and would love to catch up at your office or over coffee.

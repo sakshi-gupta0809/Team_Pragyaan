@@ -8,6 +8,7 @@ import {
 import CampaignCreationForm from './CampaignCreationForm';
 import ContactCategorization from './ContactCategorization';
 import TemplateMapping from './TemplateMapping';
+import FollowUpGeneration from './FollowUpGeneration';
 import SchedulingCalendar from './SchedulingCalendar';
 import CampaignOutput from './CampaignOutput';
 
@@ -25,6 +26,7 @@ const NeutrinoDashboard = () => {
     startDate: '',
     contacts: [],
     templates: [],
+    followUpTemplates: {},
     categories: [],
     emails: []
   });
@@ -34,8 +36,9 @@ const NeutrinoDashboard = () => {
     { id: 1, name: 'Campaign Creation', description: 'Set up your campaign details and upload leads' },
     { id: 2, name: 'Contact Categorization', description: 'Review and confirm contact categories' },
     { id: 3, name: 'Email Templates', description: 'Customize email templates for each category' },
-    { id: 4, name: 'Schedule', description: 'Review and confirm email send schedule' },
-    { id: 5, name: 'Campaign Ready', description: 'Your campaign is ready to launch' }
+    { id: 4, name: 'Follow-up Templates', description: 'Generate follow-up email templates' },
+    { id: 5, name: 'Schedule', description: 'Review and confirm email send schedule' },
+    { id: 6, name: 'Campaign Ready', description: 'Your campaign is ready to launch' }
   ];
   
   // Navigation items for the sidebar
@@ -149,7 +152,7 @@ const NeutrinoDashboard = () => {
         templates: data.templates || templates
       });
       
-      // Move to next step
+      // Move to next step (Follow-up Templates)
       setCurrentStep(4);
     } catch (err) {
       console.error("Error saving templates:", err);
@@ -159,7 +162,16 @@ const NeutrinoDashboard = () => {
     }
   };
   
-  // For the fourth step - approve schedule
+  // For the fourth step - follow-up templates generation
+  const handleFollowUpTemplatesGenerated = (followUpTemplates) => {
+    setCampaignData(prev => ({
+      ...prev,
+      followUpTemplates: followUpTemplates
+    }));
+    setCurrentStep(5);
+  };
+
+  // For the fifth step - approve schedule
   const handleScheduleApprove = async () => {
     setIsLoading(true);
     setError(null);
@@ -189,7 +201,7 @@ const NeutrinoDashboard = () => {
       });
       
       // Move to final step
-      setCurrentStep(5);
+      setCurrentStep(6);
     } catch (err) {
       console.error("Error approving schedule:", err);
       setError("Failed to process schedule. Please try again.");
@@ -256,13 +268,20 @@ const NeutrinoDashboard = () => {
                 isLoading={isLoading} 
               />;
       case 4:
+        return <FollowUpGeneration 
+                campaignData={campaignData} 
+                onNext={() => setCurrentStep(5)} 
+                onBack={() => setCurrentStep(3)} 
+                onTemplatesGenerated={handleFollowUpTemplatesGenerated}
+              />;
+      case 5:
         return <SchedulingCalendar 
                 campaignStart={campaignData.startDate} 
                 categories={campaignData.categories} 
                 onScheduleApprove={handleScheduleApprove} 
                 isLoading={isLoading} 
               />;
-      case 5:
+      case 6:
         return <CampaignOutput 
                 campaignData={campaignData} 
                 onDownload={handleDownloadCampaign} 

@@ -47,6 +47,7 @@ async def create_campaign(
     description: str = Form(""),
     start_date: str = Form(...),
     leads_file: UploadFile = File(...),
+    scenario: str = Form(None),
     db: Session = Depends(get_db)
 ):
     """
@@ -55,6 +56,11 @@ async def create_campaign(
     """
     try:
         logger.info(f"Creating campaign: {name}")
+        
+        # Normalize scenario; prefer explicit form value if provided
+        scenario_normalized = (scenario or "").strip().lower() if scenario else None
+        if scenario_normalized and ("conference" in scenario_normalized or "in person" in scenario_normalized or "in-person" in scenario_normalized):
+            scenario_normalized = "conference"
         
         # Create campaign in database first to get the ID
         campaign = Campaign(
@@ -66,7 +72,8 @@ async def create_campaign(
             open_count=0,
             click_count=0,
             unsubscribe_count=0,
-            created_at=datetime.now()
+            created_at=datetime.now(),
+            scenario=scenario_normalized or "cold_outreach"
         )
         
         db.add(campaign)
@@ -692,6 +699,7 @@ async def approve_categories(
         category_mapping = {
             "clinical": "Clinical / Pharmacy",
             "it": "IT / Technology",
+            "research": "R&D / Data",
             "rd": "R&D / Data",
             "operations": "Operations",
             "sales": "Sales / Partnerships",
