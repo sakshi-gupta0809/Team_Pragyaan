@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { FileText, Edit2, Save, X, Check, ArrowLeft, ArrowRight, RefreshCw, Sparkles } from 'lucide-react';
 
 const TemplateMapping = ({ templates, categories, onSaveTemplates, isLoading }) => {
@@ -170,28 +171,28 @@ const TemplateMapping = ({ templates, categories, onSaveTemplates, isLoading }) 
 
   const getCategoryStyle = (category) => {
     const styles = {
-      'operations': 'bg-yellow-100 text-dark border-yellow-200',
-      'clinical': 'bg-yellow-50 text-dark border-yellow-100',
-      'it': 'bg-secondary text-dark border-gray-200',
-      'research': 'bg-gray-100 text-dark border-gray-200',
-      'sales': 'bg-primary text-dark border-yellow-300',
-      'executive': 'bg-dark text-secondary border-gray-800',
-      'other': 'bg-gray-100 text-gray-800 border-gray-200'
+      'operations': 'bg-teal-900/30 text-teal-300 border border-teal-800/40',
+      'clinical': 'bg-emerald-900/30 text-emerald-300 border border-emerald-800/40',
+      'it': 'bg-cyan-900/30 text-cyan-300 border border-cyan-800/40',
+      'research': 'bg-indigo-900/30 text-indigo-300 border border-indigo-800/40',
+      'sales': 'bg-orange-900/30 text-orange-300 border border-orange-800/40',
+      'executive': 'bg-gray-700 text-gray-200 border border-gray-600',
+      'other': 'bg-gray-700 text-gray-300 border border-gray-600'
     };
     
-    return styles[category.toLowerCase()] || 'bg-gray-100 text-gray-800 border-gray-200';
+    return styles[(category || '').toLowerCase()] || 'bg-gray-700 text-gray-300 border border-gray-600';
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-md overflow-hidden">
-      <div className="p-6 border-b border-gray-200">
+    <div className="bg-gray-800 text-white rounded-2xl shadow-md overflow-hidden border border-gray-700">
+      <div className="p-6 border-b border-gray-700">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <FileText className="h-6 w-6 text-dark" />
-            <h2 className="text-2xl font-bold text-gray-800">Email Templates</h2>
+            <FileText className="h-6 w-6 text-orange-400" />
+            <h2 className="text-2xl font-bold text-white">Email Templates</h2>
           </div>
           <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-gray-400">
               Template {currentCategoryIndex + 1} of {categories.length}
             </span>
           </div>
@@ -230,15 +231,15 @@ const TemplateMapping = ({ templates, categories, onSaveTemplates, isLoading }) 
         </div>
 
         {/* Template editor */}
-        <div className="mb-6 border rounded-xl overflow-hidden">
-          <div className="bg-gray-50 px-4 py-3 border-b flex justify-between items-center">
-            <h3 className="font-medium text-gray-700">Email Template</h3>
+        <div className="mb-6 border rounded-xl overflow-hidden border-gray-700">
+          <div className="bg-gray-900 px-4 py-3 border-b border-gray-700 flex justify-between items-center">
+            <h3 className="font-medium text-white">Email Template</h3>
             {!editMode ? (
               <div className="flex space-x-2">
                 <button
                   onClick={handleRegenerate}
                   disabled={isRegenerating}
-                  className="inline-flex items-center px-3 py-1 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-xl text-dark bg-primary hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                  className="inline-flex items-center px-3 py-1 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-xl text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
                 >
                   {isRegenerating ? (
                     <>
@@ -254,7 +255,7 @@ const TemplateMapping = ({ templates, categories, onSaveTemplates, isLoading }) 
                 </button>
                 <button
                   onClick={handleEdit}
-                  className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-xl text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                  className="inline-flex items-center px-3 py-1 border border-gray-600 shadow-sm text-sm leading-4 font-medium rounded-xl text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
                 >
                   <Edit2 className="mr-1 h-4 w-4" />
                   Edit
@@ -264,14 +265,14 @@ const TemplateMapping = ({ templates, categories, onSaveTemplates, isLoading }) 
               <div className="flex space-x-2">
                 <button
                   onClick={handleCancel}
-                  className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-xl text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                  className="inline-flex items-center px-3 py-1 border border-gray-600 shadow-sm text-sm leading-4 font-medium rounded-xl text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                 >
                   <X className="mr-1 h-4 w-4" />
                   Cancel
                 </button>
                 <button
                   onClick={handleSave}
-                  className="inline-flex items-center px-3 py-1 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-xl text-dark bg-primary hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                  className="inline-flex items-center px-3 py-1 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-xl text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
                 >
                   <Save className="mr-1 h-4 w-4" />
                   Save
@@ -285,12 +286,12 @@ const TemplateMapping = ({ templates, categories, onSaveTemplates, isLoading }) 
               <div>
                 {/* Subject */}
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
                     Subject Line
                   </label>
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+                    className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:ring-orange-500 focus:border-orange-500"
                     value={editedSubject}
                     onChange={(e) => setEditedSubject(e.target.value)}
                     placeholder="Enter email subject..."
@@ -299,11 +300,11 @@ const TemplateMapping = ({ templates, categories, onSaveTemplates, isLoading }) 
                 
                 {/* Body */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
                     Email Body
                   </label>
                   <textarea
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+                    className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:ring-orange-500 focus:border-orange-500"
                     rows="10"
                     value={editedBody}
                     onChange={(e) => setEditedBody(e.target.value)}
@@ -312,13 +313,13 @@ const TemplateMapping = ({ templates, categories, onSaveTemplates, isLoading }) 
                 </div>
               </div>
             ) : (
-              <div className="bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 prose max-w-none min-h-[200px] font-sans">
+              <div className="bg-gray-900 px-3 py-2 rounded-lg border border-gray-700 prose max-w-none min-h-[200px] font-sans text-gray-100">
                 {/* Display email as a complete formatted template */}
                 <div className="font-medium mb-2">Subject: {currentTemplate.subject || 'No subject'}</div>
-                <div className="border-t border-gray-300 mb-2 pt-2"></div>
+                <div className="border-t border-gray-700 mb-2 pt-2"></div>
                 
                 {/* Add a note about placeholders - changed to light grey */}
-                <div className="bg-gray-100 p-2 mb-3 text-xs rounded">
+                <div className="bg-gray-800 p-2 mb-3 text-xs rounded text-gray-300">
                   <p className="font-bold">Preview Note:</p>
                   <p>Highlighted text shows placeholders that will be replaced with actual data from Excel.</p>
                 </div>
@@ -327,7 +328,7 @@ const TemplateMapping = ({ templates, categories, onSaveTemplates, isLoading }) 
                   {currentTemplate.body ? (
                     <div className="complete-email-template">
                       {/* Highlight the placeholder to show it will be replaced with actual data - changed to light grey */}
-                      <p>Hi <span className="bg-gray-200 text-gray-800 px-1 rounded font-bold">{'{{first_name}}'}</span>,</p>
+                      <p>Hi <span className="bg-gray-700 text-gray-100 px-1 rounded font-bold">{'{{first_name}}'}</span>,</p>
                       
                       {/* Render HTML content safely with placeholder highlighting - changed to light grey */}
                       <div
@@ -338,7 +339,7 @@ const TemplateMapping = ({ templates, categories, onSaveTemplates, isLoading }) 
                               // Highlight placeholders in light grey instead of blue
                               const highlightedParagraph = paragraph.replace(
                                 /\{\{([^}]+)\}\}/g,
-                                '<span class="bg-gray-200 text-gray-800 px-1 rounded font-bold">{{$1}}</span>'
+                                '<span class="bg-gray-700 text-gray-100 px-1 rounded font-bold">{{$1}}</span>'
                               );
                               return `<p>${highlightedParagraph}</p>`;
                             })
@@ -357,7 +358,7 @@ const TemplateMapping = ({ templates, categories, onSaveTemplates, isLoading }) 
                   )}
                 </div>
                 {currentTemplate.regenerated && (
-                  <div className="mt-4 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary text-dark">
+                  <div className="mt-4 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-600 text-white">
                     <Sparkles className="mr-1 h-3 w-3" />
                     AI Regenerated
                   </div>
@@ -398,11 +399,11 @@ const TemplateMapping = ({ templates, categories, onSaveTemplates, isLoading }) 
       </div>
 
       {/* Actions */}
-      <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
-        <div className="text-sm text-gray-500">
+      <div className="px-6 py-4 bg-gray-900 border-t border-gray-700 flex justify-between items-center">
+        <div className="text-sm text-gray-400">
           {savedTemplates.length} of {categories.length} templates customized
           {regenerationError && (
-            <div className="mt-2 text-sm text-red-600">
+            <div className="mt-2 text-sm text-red-400">
               Error: {regenerationError}
             </div>
           )}
@@ -410,14 +411,14 @@ const TemplateMapping = ({ templates, categories, onSaveTemplates, isLoading }) 
         <div className="flex space-x-3">
           <button
             type="button"
-            className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-xl text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+            className="inline-flex items-center px-4 py-2 border border-gray-600 shadow-sm text-sm font-medium rounded-xl text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
             onClick={() => window.history.back()}
           >
             Back
           </button>
           <button
             type="button"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl shadow-sm text-dark bg-primary hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
             onClick={handleSaveAll}
             disabled={isLoading}
           >

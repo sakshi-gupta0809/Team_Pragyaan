@@ -526,7 +526,7 @@ const Profile = () => {
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
+        <h1 className="text-3xl font-bold text-emerald-600">My Profile</h1>
         {!isEditing && (
           <button
             onClick={handleEdit}
@@ -656,8 +656,8 @@ const Profile = () => {
                   </div>
                 ) : (
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900">{profile.name}</h2>
-                    <p className="text-gray-600 flex items-center space-x-2 mt-1">
+                    <h2 className="text-2xl font-bold text-emerald-700">{profile.name}</h2>
+                    <p className="text-emerald-600 flex items-center space-x-2 mt-1">
                       <Mail className="w-4 h-4" />
                       <span>{profile.email}</span>
                     </p>
@@ -669,7 +669,7 @@ const Profile = () => {
 
           {/* Contact Information */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
+            <h3 className="text-lg font-semibold text-emerald-600 mb-4">Contact Information</h3>
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -770,7 +770,7 @@ const Profile = () => {
 
           {/* Bio */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">About</h3>
+            <h3 className="text-lg font-semibold text-emerald-600 mb-4">About</h3>
             {isEditing ? (
               <div>
                 <textarea
@@ -798,7 +798,7 @@ const Profile = () => {
 
           {/* Preferences */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Preferences</h3>
+            <h3 className="text-lg font-semibold text-emerald-600 mb-4">Preferences</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -885,8 +885,8 @@ const Profile = () => {
         {/* Account Info Sidebar */}
         <div className="space-y-6">
           {/* Account Info */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Account Information</h3>
+          <div className="bg-white rounded-xl shadow-sm border border-emerald-200 p-6">
+            <h3 className="text-lg font-semibold text-emerald-600 mb-4">Account Information</h3>
             <div className="space-y-3">
               <div className="flex items-center space-x-3">
                 <Calendar className="w-5 h-5 text-gray-400" />

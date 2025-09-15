@@ -109,3 +109,46 @@ def delete_contact(
     db.delete(contact)
     db.commit()
     return {"message": "Contact deleted successfully"}
+
+
+@router.get("/contacts/medical-categories")
+def get_medical_contact_categories(db: Session = Depends(get_db)):
+    """
+    Get statistics for medical contacts grouped by their categories.
+    This endpoint is specifically designed for the medical dashboard.
+    """
+    try:
+        # Get all contacts
+        contacts = db.query(Contact).all()
+        
+        # Initialize category counters
+        categories = {
+            "clinical": 0,
+            "research": 0,
+            "administrative": 0,
+            "it": 0,
+            "other": 0
+        }
+        
+        # Count contacts by category
+        for contact in contacts:
+            if not contact.category:
+                categories["other"] += 1
+                continue
+                
+            category = contact.category.lower()
+            
+            if "clinical" in category or "doctor" in category or "nurse" in category or "physician" in category:
+                categories["clinical"] += 1
+            elif "research" in category or "r&d" in category or "scientist" in category:
+                categories["research"] += 1
+            elif "admin" in category or "management" in category:
+                categories["administrative"] += 1
+            elif "it" in category or "tech" in category:
+                categories["it"] += 1
+            else:
+                categories["other"] += 1
+        
+        return categories
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch medical categories: {str(e)}")

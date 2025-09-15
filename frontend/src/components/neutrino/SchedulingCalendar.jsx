@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Info, CheckCircle, AlertTriangle, ArrowRight } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const SchedulingCalendar = ({ campaignStart, categories, onScheduleApprove, isLoading }) => {
   const [followUpDays, setFollowUpDays] = useState([0, 2, 4, 6, 8]); // Consistent 2-business-day gaps
@@ -159,25 +160,25 @@ const SchedulingCalendar = ({ campaignStart, categories, onScheduleApprove, isLo
   // Get category style
   const getCategoryStyle = (category) => {
     const styles = {
-      'operations': 'bg-teal-100 text-teal-800',
-      'clinical': 'bg-emerald-100 text-emerald-800',
-      'it': 'bg-cyan-100 text-cyan-800',
-      'research': 'bg-indigo-100 text-indigo-800',
-      'sales': 'bg-amber-100 text-amber-800',
-      'executive': 'bg-rose-100 text-rose-800',
-      'other': 'bg-gray-100 text-gray-800'
+      'operations': 'bg-teal-900/30 text-teal-300',
+      'clinical': 'bg-emerald-900/30 text-emerald-300',
+      'it': 'bg-cyan-900/30 text-cyan-300',
+      'research': 'bg-indigo-900/30 text-indigo-300',
+      'sales': 'bg-amber-900/30 text-amber-300',
+      'executive': 'bg-rose-900/30 text-rose-300',
+      'other': 'bg-gray-700 text-gray-300'
     };
-    
-    return styles[category.id.toLowerCase()] || 'bg-gray-100 text-gray-800';
+    const key = (category?.id || '').toLowerCase();
+    return styles[key] || 'bg-gray-700 text-gray-300';
   };
   
   return (
-    <div className="bg-white rounded-2xl shadow-md overflow-hidden">
-      <div className="p-6 border-b border-gray-200">
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="bg-gray-800 rounded-2xl shadow-md overflow-hidden border border-gray-700 text-white">
+      <div className="p-6 border-b border-gray-700">
         <div className="flex flex-wrap items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Calendar className="h-6 w-6 text-primary" />
-            <h2 className="text-2xl font-bold text-gray-800">Email Schedule</h2>
+            <Calendar className="h-6 w-6 text-orange-400" />
+            <h2 className="text-2xl font-bold text-white">Email Schedule</h2>
           </div>
           <div className="flex items-center space-x-3 mt-4 sm:mt-0">
             <button
@@ -205,12 +206,12 @@ const SchedulingCalendar = ({ campaignStart, categories, onScheduleApprove, isLo
       </div>
       
       {/* Follow-up days configuration */}
-      <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+      <div className="px-6 py-4 bg-gray-900 border-b border-gray-700">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm font-medium text-gray-700">Follow-up sequence:</span>
+          <span className="text-sm font-medium text-gray-300">Follow-up sequence:</span>
           <div className="flex flex-wrap gap-2">
             <div className="flex items-center text-sm">
-              <span className="px-2 py-1 bg-white border border-gray-300 rounded-md">
+              <span className="px-2 py-1 bg-gray-800 border border-gray-600 rounded-md">
                 Initial Email
               </span>
               <ArrowRight className="mx-1 h-3 w-3 text-gray-400" />
@@ -219,7 +220,7 @@ const SchedulingCalendar = ({ campaignStart, categories, onScheduleApprove, isLo
             {/* Calculate and display the actual business day gaps */}
             {Array.from(new Set(scheduleData.map(item => item.followUpDay))).sort((a, b) => a - b).filter(day => day > 0).map((day, index) => (
               <div key={index} className="flex items-center text-sm">
-                <span className="px-2 py-1 bg-white border border-gray-300 rounded-md">
+                <span className="px-2 py-1 bg-gray-800 border border-gray-600 rounded-md">
                   {`Day ${day}`}
                 </span>
                 {index < Array.from(new Set(scheduleData.map(item => item.followUpDay))).filter(d => d > 0).length - 1 && (
@@ -230,8 +231,8 @@ const SchedulingCalendar = ({ campaignStart, categories, onScheduleApprove, isLo
           </div>
         </div>
         <div className="mt-2 flex items-start">
-          <Info className="h-4 w-4 text-primary mt-0.5 mr-1.5 flex-shrink-0" />
-          <p className="text-xs text-gray-500">
+          <Info className="h-4 w-4 text-orange-400 mt-0.5 mr-1.5 flex-shrink-0" />
+          <p className="text-xs text-gray-400">
             The system automatically skips weekends and US holidays. All emails will be sent during business hours (9am-5pm).
           </p>
         </div>
@@ -242,32 +243,32 @@ const SchedulingCalendar = ({ campaignStart, categories, onScheduleApprove, isLo
         <div className="p-6">
           <div className="relative">
             {/* Timeline */}
-            <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+            <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-700"></div>
             
             {scheduleData.map((item, index) => (
               <div key={index} className="flex mb-6 relative">
                 {/* Timeline dot */}
-                <div className="absolute left-8 w-4 h-4 rounded-full bg-white border-2 border-primary transform -translate-x-1/2"></div>
+                <div className="absolute left-8 w-4 h-4 rounded-full bg-gray-900 border-2 border-orange-500 transform -translate-x-1/2"></div>
                 
                 {/* Date indicator */}
-                <div className="flex-none w-16 text-right mr-8 text-sm text-gray-500 font-medium">
+                <div className="flex-none w-16 text-right mr-8 text-sm text-gray-400 font-medium">
                   {item.description === 'Initial email' ? 'Initial' : `Day ${item.followUpDay}`}
                 </div>
                 
                 {/* Content */}
                 <div className="flex-grow pl-4">
-                  <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                  <div className="bg-gray-900 rounded-lg border border-gray-700 p-4 shadow-sm">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-medium text-gray-900">{item.description}</h4>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getCategoryStyle(item.category)}`}>
                         {item.category.name}
                       </span>
                     </div>
-                    <div className="flex items-center text-sm text-gray-500 mb-1">
+                    <div className="flex items-center text-sm text-gray-400 mb-1">
                       <Calendar className="mr-1.5 h-4 w-4" />
                       {formatDate(item.sendDate)}
                     </div>
-                    <div className="flex items-center text-sm text-gray-500">
+                    <div className="flex items-center text-sm text-gray-400">
                       <Clock className="mr-1.5 h-4 w-4" />
                       Between 9:00 AM - 5:00 PM (recipient's local time)
                     </div>
@@ -282,10 +283,10 @@ const SchedulingCalendar = ({ campaignStart, categories, onScheduleApprove, isLo
       {/* Calendar View */}
       {view === 'calendar' && (
         <div className="p-6">
-          <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-lg overflow-hidden">
+          <div className="grid grid-cols-7 gap-px bg-gray-700 rounded-lg overflow-hidden">
             {/* Day headers */}
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
-              <div key={index} className="bg-gray-100 p-2 text-center text-xs font-medium text-gray-700">
+              <div key={index} className="bg-gray-800 p-2 text-center text-xs font-medium text-gray-300">
                 {day}
               </div>
             ))}
@@ -300,21 +301,21 @@ const SchedulingCalendar = ({ campaignStart, categories, onScheduleApprove, isLo
               return (
                 <div 
                   key={index}
-                  className={`bg-white min-h-[100px] p-2 ${
+                  className={`bg-gray-900 min-h-[100px] p-2 ${
                     isWeekendDay || isHoliday 
-                      ? 'bg-gray-50' 
+                      ? 'bg-gray-800' 
                       : ''
                   }`}
                 >
                   <div className="text-right">
                     <span className={`text-xs font-medium ${
                       isWeekendDay || isHoliday 
-                        ? 'text-gray-400' 
+                        ? 'text-gray-500' 
                         : date.getDate() === new Date().getDate() && 
                           date.getMonth() === new Date().getMonth() &&
                           date.getFullYear() === new Date().getFullYear()
-                          ? 'bg-primary text-dark rounded-full w-6 h-6 flex items-center justify-center'
-                          : 'text-gray-700'
+                          ? 'bg-orange-600 text-white rounded-full w-6 h-6 flex items-center justify-center'
+                          : 'text-gray-300'
                     }`}>
                       {date.getDate()}
                     </span>
@@ -346,21 +347,21 @@ const SchedulingCalendar = ({ campaignStart, categories, onScheduleApprove, isLo
       )}
       
       {/* Actions */}
-      <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
-        <div className="text-sm text-gray-500">
+      <div className="px-6 py-4 bg-gray-900 border-t border-gray-700 flex justify-between items-center">
+        <div className="text-sm text-gray-400">
           {scheduleData.length} emails scheduled across {categories.length} categories
         </div>
         <div className="flex space-x-3">
           <button
             type="button"
-            className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-xl text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+            className="inline-flex items-center px-4 py-2 border border-gray-600 shadow-sm text-sm font-medium rounded-xl text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
             onClick={() => window.history.back()}
           >
             Back
           </button>
           <button
             type="button"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl shadow-sm text-secondary bg-dark hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
             onClick={onScheduleApprove}
             disabled={isLoading}
           >
@@ -381,7 +382,7 @@ const SchedulingCalendar = ({ campaignStart, categories, onScheduleApprove, isLo
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

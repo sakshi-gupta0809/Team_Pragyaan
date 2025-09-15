@@ -1,14 +1,12 @@
 import { useState } from 'react'
 import './App.css'
 import Dashboard from './components/Dashboard'
-import ModernDashboard from './components/ModernDashboard'
 import Login from './auth/Login'
 import Register from './auth/Register'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect } from 'react'
 
 function App() {
-  const [useModernUI, setUseModernUI] = useState(true)
   const requireAuth = import.meta.env.VITE_REQUIRE_AUTH === 'true'
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('token'))
   const [mode, setMode] = useState('login')
@@ -44,9 +42,18 @@ function App() {
   }
 
   return (
-    <div className="app-container">
-      <Dashboard onLogout={() => { localStorage.removeItem('token'); setIsAuthenticated(false); }} />
-    </div>
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.25, ease: 'easeOut' }}
+        className="app-container"
+      >
+        <Dashboard onLogout={() => { localStorage.removeItem('token'); setIsAuthenticated(false); }} />
+
+      </motion.div>
+    </AnimatePresence>
   )
 }
 
