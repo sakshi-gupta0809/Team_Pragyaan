@@ -25,15 +25,21 @@ class EmailService:
         logger.info(f"Creating email for contact: {contact.email}, template ID: {template.id}, campaign: {campaign.name}")
         
         try:
-            body = template.body.replace("{name}", contact.name)
-            subject = template.subject
+            # Process placeholders in subject and body
+            from .email_placeholders import process_placeholders
+            body = process_placeholders(template.body, contact)
+            subject = process_placeholders(template.subject, contact)
             
             email_log = models.EmailLog(
                 recipient_email=contact.email,
+                recipient_name=contact.name,
+                recipient_company=contact.company,
+                recipient_category=contact.category,
                 subject=subject,
                 body=body,
                 status="pending",
-                campaign=campaign
+                campaign=campaign,
+                contact_id=contact.id
             )
             
             self.db.add(email_log)

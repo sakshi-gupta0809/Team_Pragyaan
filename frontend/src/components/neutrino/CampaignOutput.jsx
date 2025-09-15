@@ -10,7 +10,14 @@ const CampaignOutput = ({ campaignData, onDownload, isLoading }) => {
     try {
       const res = await fetch('http://localhost:8000/emails/process-now', {
         method: 'POST',
-        headers: { 'Accept': 'application/json' }
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          force_send: true,
+          only_initial: true  // Explicitly set to only send initial emails (step=1)
+        })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Failed to process emails');

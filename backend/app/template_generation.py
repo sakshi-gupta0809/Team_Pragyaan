@@ -211,7 +211,8 @@ Instructions:
         category: str,
         scenario: str,
         step: int = 1,
-        additional_context: Optional[Dict[str, Any]] = None
+        additional_context: Optional[Dict[str, Any]] = None,
+        campaign_description: Optional[str] = None
     ) -> Dict[str, str]:
         """Generate an email template for a specific category and scenario."""
         # Log the input parameters for debugging
@@ -245,6 +246,10 @@ Instructions:
         prompt = prompt.replace("{{step}}", str(step))
         prompt = prompt.replace("{{neutrino_summary}}", self.company_summary)
         prompt = prompt.replace("{{sample_email}}", sample_email)
+        
+        # Add campaign description if available
+        if campaign_description:
+            prompt += f"\n\nCAMPAIGN DESCRIPTION:\n{campaign_description}\n\nIncorporate the context from this campaign description into the email. Make sure the email content aligns with the campaign objectives described above."
         
         # Add a note about using actual data
         prompt += "\n\nCRITICAL: The placeholders {{first_name}}, {{company_name}}, etc. will be replaced with ACTUAL data from the Excel file during personalization. DO NOT use generic names or companies in your template."
@@ -329,39 +334,14 @@ Instructions:
         Returns:
             Dictionary with personalized subject and body
         """
-        logger.info(f"Personalizing template with contact data: {contact_data}")
+        logger.info(f"Personalizing template with contact data")
         
-        # Start with the template
-        personalized_subject = template["subject"]
-        personalized_body = template["body"]
+        # Use the centralized placeholder processing module
+        from .email_placeholders import process_placeholders
         
-        # Replace placeholders in subject and body
-        for key, value in contact_data.items():
-            if not value:  # Skip empty values
-                continue
-                
-            # Create placeholder pattern with double curly braces
-            placeholder = f"{{{{{key}}}}}"
-            
-            # Replace in subject
-            if placeholder in personalized_subject:
-                personalized_subject = personalized_subject.replace(placeholder, value)
-                logger.info(f"Replaced {placeholder} in subject with {value}")
-            
-            # Replace in body
-            if placeholder in personalized_body:
-                personalized_body = personalized_body.replace(placeholder, value)
-                logger.info(f"Replaced {placeholder} in body with {value}")
-        
-        # Check for any remaining placeholders and log them
-        subject_placeholders = re.findall(r'{{[^}]+}}', personalized_subject)
-        body_placeholders = re.findall(r'{{[^}]+}}', personalized_body)
-        
-        if subject_placeholders:
-            logger.warning(f"Remaining placeholders in subject: {subject_placeholders}")
-        
-        if body_placeholders:
-            logger.warning(f"Remaining placeholders in body: {body_placeholders}")
+        # Process placeholders in both subject and body
+        personalized_subject = process_placeholders(template["subject"], contact_data)
+        personalized_body = process_placeholders(template["body"], contact_data)
         
         return {
             "subject": personalized_subject,

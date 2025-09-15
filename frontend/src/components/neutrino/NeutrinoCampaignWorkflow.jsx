@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react';
 import CampaignCreationForm from './CampaignCreationForm';
 import ContactCategorization from './ContactCategorization';
 import TemplateMapping from './TemplateMapping';
+import FollowUpGeneration from './FollowUpGeneration';
 import SchedulingCalendar from './SchedulingCalendar';
 import CampaignOutput from './CampaignOutput';
 
@@ -21,6 +22,7 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
     startDate: '',
     contacts: [],
     templates: [],
+    followUpTemplates: {},
     categories: [],
     emails: []
   });
@@ -29,9 +31,10 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
   const steps = [
     { id: 1, name: 'Campaign Creation', description: 'Set up your campaign details and upload leads' },
     { id: 2, name: 'Contact Categorization', description: 'Review and confirm contact categories' },
-    { id: 3, name: 'Email Templates', description: 'Customize email templates for each category' },
-    { id: 4, name: 'Schedule', description: 'Review and confirm email send schedule' },
-    { id: 5, name: 'Campaign Ready', description: 'Your campaign is ready to launch' }
+    { id: 3, name: 'Email Templates', description: 'Customize initial email templates for each category' },
+    { id: 4, name: 'Follow-up Templates', description: 'Generate follow-up email templates' },
+    { id: 5, name: 'Schedule', description: 'Review and confirm email send schedule' },
+    { id: 6, name: 'Campaign Ready', description: 'Your campaign is ready to launch' }
   ];
   
   // For the first step - campaign creation form submission
@@ -244,13 +247,28 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
       setIsLoading(false);
     }
   };
+
+  // For the fourth step - follow-up templates generation
+  const handleFollowUpTemplatesGenerated = (followUpTemplates) => {
+    setCampaignData(prev => ({
+      ...prev,
+      followUpTemplates: followUpTemplates
+    }));
+    setCurrentStep(5);
+  };
   
-  // For the fourth step - approve schedule
+  // For the fifth step - approve schedule
   const handleScheduleApprove = async () => {
+    console.log('Approving schedule for campaign:', campaignData.id);
     setIsLoading(true);
     setError(null);
     
     try {
+      const requestBody = {
+        startDate: campaignData.startDate
+      };
+      console.log('Schedule approval request body:', requestBody);
+      
       // Make API call to approve schedule with proper CORS headers
       const response = await fetch(`http://localhost:8000/api/neutrino/campaigns/${campaignData.id}/schedule/approve`, {
         method: 'POST',
@@ -258,18 +276,19 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({
-          startDate: campaignData.startDate
-        }),
+        body: JSON.stringify(requestBody),
         mode: 'cors',
         credentials: 'omit'
       });
+      
+      console.log('Schedule approval response status:', response.status);
       
       if (!response.ok) {
         throw new Error(`Failed to approve schedule: ${response.statusText}`);
       }
       
       const data = await response.json();
+      console.log('Schedule approval response data:', data);
       
       // Update state with the scheduled emails from API
       setCampaignData({
@@ -278,7 +297,7 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
       });
       
       // Move to final step
-      setCurrentStep(5);
+      setCurrentStep(6);
       setToast({ visible: true, message: 'Schedule approved', type: 'success' });
     } catch (err) {
       console.error("Error approving schedule:", err);
@@ -307,7 +326,7 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
       setToast({ visible: true, message: 'Using demo schedule', type: 'error' });
       
       // Move to final step anyway
-      setCurrentStep(5);
+      setCurrentStep(6);
     } finally {
       setIsLoading(false);
     }
@@ -407,13 +426,20 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
                 isLoading={isLoading} 
               />;
       case 4:
+        return <FollowUpGeneration 
+                campaignData={campaignData} 
+                onNext={() => setCurrentStep(5)} 
+                onBack={() => setCurrentStep(3)} 
+                onTemplatesGenerated={handleFollowUpTemplatesGenerated}
+              />;
+      case 5:
         return <SchedulingCalendar 
                 campaignStart={campaignData.startDate} 
                 categories={campaignData.categories} 
                 onScheduleApprove={handleScheduleApprove} 
                 isLoading={isLoading} 
               />;
-      case 5:
+      case 6:
         return <CampaignOutput 
                 campaignData={campaignData} 
                 onDownload={handleDownloadCampaign} 
@@ -425,7 +451,7 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
   };
   
   return (
-    <div className="bg-brand-white rounded-2xl shadow-md">
+    <div className="bg-white rounded-2xl shadow-md">
       {toast.visible && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow ${toast.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
           <div className="flex items-center">

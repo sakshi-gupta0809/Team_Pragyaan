@@ -163,7 +163,16 @@ class CampaignWorkflow:
             'organization': 'company',
             'industry': 'industry',
             'linkedin': 'linkedin_url',
-            'linkedin_url': 'linkedin_url'
+            'linkedin_url': 'linkedin_url',
+            # Add mappings for location fields
+            'city': 'city',
+            'state': 'state',
+            'POC City': 'city',
+            'POC State': 'state',
+            'poc_city': 'city',
+            'poc_state': 'state',
+            'location': 'city',
+            'region': 'state'
         }
         
         # Rename columns based on mapping
@@ -196,17 +205,49 @@ class CampaignWorkflow:
                 # First, log all columns to help with debugging
                 logger.info(f"Excel columns: {list(df.columns)}")
                 
+                # Create a dynamic mapping of all columns
+                dynamic_column_mapping = {}
+                for col in df.columns:
+                    # For each column, create both a standardized and original version
+                    std_key = col.lower().replace(' ', '_').replace('-', '_')
+                    dynamic_column_mapping[col] = std_key
+                
+                logger.info(f"Dynamic column mapping: {dynamic_column_mapping}")
+                
                 for col in df.columns:
                     # Include all columns as extra data, even standard ones
                     # This ensures all Excel data is available for personalization
                     if pd.notna(row[col]):
-                        # Convert column name to a valid key format
-                        key = col.lower().replace(' ', '_').replace('-', '_')
                         value = str(row[col])
-                        extra_data[key] = value
-                        logger.info(f"Extracted {key}: {value}")
+                        
+                        # Store both original and standardized key versions
+                        # This allows placeholder replacement to work with both formats
+                        extra_data[col] = value  # Original column name (e.g., "POC City")
+                        
+                        # Add standardized version
+                        std_key = dynamic_column_mapping[col]
+                        extra_data[std_key] = value  # Always add standardized key
+                        
+                        # Add special case mappings for known fields
+                        if col.lower() in ['poc city', 'city', 'location']:
+                            extra_data['city'] = value
+                            extra_data['POC City'] = value
+                        elif col.lower() in ['poc state', 'state', 'region']:
+                            extra_data['state'] = value
+                            extra_data['POC State'] = value
+                        elif col.lower() in ['company', 'company_name', 'organization']:
+                            extra_data['company'] = value
+                            extra_data['company_name'] = value
+                        elif col.lower() in ['industry', 'sector', 'business_type']:
+                            extra_data['industry'] = value
+                        
+                        logger.info(f"Extracted {col} / {std_key}: {value}")
                 
                 # Create contact object
+                # Extract common fields from extra_data to main contact fields
+                city = extra_data.get('city', extra_data.get('POC City', ''))
+                state = extra_data.get('state', extra_data.get('POC State', ''))
+                
                 contact = models.Contact(
                     name=row['name'],
                     email=row['email'],
@@ -215,6 +256,8 @@ class CampaignWorkflow:
                     industry=row.get('industry'),
                     category=row.get('category', "Other"),
                     linkedin_url=row.get('linkedin_url'),
+                    poc_city=city,  # Store POC City in dedicated column
+                    poc_state=state,  # Store POC State in dedicated column
                     campaign_id=campaign_id,
                     extra_data=extra_data if extra_data else None
                 )
@@ -276,7 +319,8 @@ class CampaignWorkflow:
                 
             # Create initial email template (step 1)
             template_data = self.template_generator.generate_template_for_category(
-                category, campaign.scenario, 1
+                category, campaign.scenario, 1,
+                campaign_description=campaign.description
             )
             
             template = models.EmailTemplate(
@@ -294,7 +338,8 @@ class CampaignWorkflow:
             max_followups = 5
             for step in range(2, max_followups + 1):
                 followup_data = self.template_generator.generate_template_for_category(
-                    category, campaign.scenario, step
+                    category, campaign.scenario, step,
+                    campaign_description=campaign.description
                 )
                 
                 followup_template = models.EmailTemplate(
@@ -409,10 +454,15 @@ class CampaignWorkflow:
                 # Log the final contact_data for debugging
                 logger.info(f"Final contact_data: {contact_data}")
                 
-                # Add location data if available
-                if contact.extra_data and "city" in contact.extra_data:
+                # Add location data from dedicated columns first, fall back to extra_data if needed
+                if contact.poc_city:
+                    contact_data["POC City"] = contact.poc_city
+                elif contact.extra_data and "city" in contact.extra_data:
                     contact_data["POC City"] = contact.extra_data["city"]
-                if contact.extra_data and "state" in contact.extra_data:
+                
+                if contact.poc_state:
+                    contact_data["POC State"] = contact.poc_state
+                elif contact.extra_data and "state" in contact.extra_data:
                     contact_data["POC State"] = contact.extra_data["state"]
                 
                 # Add LinkedIn handle if available

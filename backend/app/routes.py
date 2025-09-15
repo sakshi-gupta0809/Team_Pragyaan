@@ -235,6 +235,30 @@ def get_templates(request: Request, campaign_id: int, db: Session = Depends(get_
     return templates
 
 
+@router.get("/campaigns/{campaign_id}/followup-templates/", response_model=List[schemas.EmailTemplate])
+def get_followup_templates(request: Request, campaign_id: int, db: Session = Depends(get_db)):
+    # Add request context
+    add_log_context(request, operation="get_followup_templates", campaign_id=campaign_id)
+    
+    # Check if campaign exists
+    campaign = db.query(models.Campaign).filter(models.Campaign.id == campaign_id).first()
+    if not campaign:
+        add_log_context(request, error="campaign_not_found")
+        logger.warning(f"Get followup templates failed: Campaign ID {campaign_id} not found")
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    # Get templates with step > 1 (follow-up templates)
+    followup_templates = db.query(models.EmailTemplate).filter(
+        models.EmailTemplate.campaign_id == campaign_id,
+        models.EmailTemplate.step > 1
+    ).all()
+    
+    # Add result context
+    add_log_context(request, template_count=len(followup_templates), status="success")
+    logger.info(f"Retrieved {len(followup_templates)} followup templates for campaign ID: {campaign_id}")
+    return followup_templates
+
+
 # -------------------- Email Logs --------------------
 @router.post("/campaigns/{campaign_id}/generate-emails/")
 def generate_emails(request: Request, campaign_id: int, template_id: int, db: Session = Depends(get_db)):
@@ -496,9 +520,52 @@ def get_schedules(request: Request, db: Session = Depends(get_db)):
 
 # -------------------- Trigger Email Sending --------------------
 @router.post("/emails/process-now")
-def trigger_email_processing(request: Request, db: Session = Depends(get_db)):
-    add_log_context(request, operation="process_now")
-    processed_count, processed = process_scheduled_emails(db)
+async def trigger_email_processing(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    # Extract force_send from request body
+    try:
+        body = await request.json()
+        force_send = body.get("force_send", False)
+        # Always default to only sending initial emails (step=1) when using "Send Now"
+        # Frontend can explicitly set only_initial=False if follow-ups should be included
+        only_initial = body.get("only_initial", True)
+    except:
+        force_send = False
+        only_initial = True
+    
+    add_log_context(request, operation="process_now", force_send=force_send, only_initial=only_initial)
+    
+    if force_send:
+        # If force_send is true, directly query for pending emails without checking schedule time
+        from .models import Schedule, EmailLog, Contact
+        from datetime import datetime
+        # Get pending emails that haven't been sent yet, regardless of scheduled time
+        query = db.query(Schedule).join(
+            Schedule.email_log
+        ).outerjoin(
+            Contact, EmailLog.contact_id == Contact.id
+        ).filter(
+            Schedule.is_sent == False,
+            EmailLog.status.in_(["pending", "failed", "scheduled"]),
+            ((Contact.id == None) | (Contact.unsubscribed == False))
+        )
+        
+        # If only sending initial emails, add filter for step=1
+        if only_initial:
+            query = query.filter(EmailLog.step == 1)
+        
+        due_schedules = query.all()
+        
+        # Use the existing processing logic
+        from .scheduler import process_scheduled_emails
+        processed_count, processed = process_scheduled_emails(db, due_schedules=due_schedules)
+    else:
+        # Use normal processing which only processes emails due now or in the past
+        from .scheduler import process_scheduled_emails
+        processed_count, processed = process_scheduled_emails(db)
+    
     add_log_context(request, processed_count=processed_count)
     return {"processed_count": processed_count, "processed": processed}
 

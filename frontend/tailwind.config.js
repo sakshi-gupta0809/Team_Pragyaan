@@ -7,12 +7,16 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#FFE900',
-        secondary: '#FCFCFC',
+        primary: '#00809D',
+        secondary: '#FCF8DD',
+        accent: '#FFD700',
+        accentDark: '#D3AF37',
         dark: '#2F2F2F',
         brand: {
-          yellow: '#FFE900',
-          white: '#FCFCFC',
+          teal: '#00809D',
+          cream: '#FCF8DD',
+          gold: '#FFD700',
+          goldDark: '#D3AF37',
           dark: '#2F2F2F'
         },
         neutrino: {

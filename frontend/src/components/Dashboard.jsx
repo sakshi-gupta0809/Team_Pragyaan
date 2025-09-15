@@ -892,7 +892,7 @@ const handleAddContact = async () => {
       <div className="w-64 bg-white shadow-lg rounded-3xl m-4">
         <div className="p-6 border-b border-gray-100">
           <div>
-            <span className="text-xl font-bold text-gray-900">EmailAI</span>
+            <span className="text-xl font-bold text-gray-900">E-maily</span>
             <div className="text-xs text-gray-500">AI-Powered Platform</div>
           </div>
         </div>

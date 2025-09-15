@@ -328,9 +328,9 @@ const CampaignsInterface = () => {
                           {(() => {
                             const s = (campaign.status || '').toString().toLowerCase();
                             const cls = s === 'sent'
-                              ? 'bg-emerald-100 text-emerald-800'
+                              ? 'bg-green-100 text-green-800'
                               : s === 'scheduled'
-                              ? 'bg-blue-100 text-blue-800'
+                              ? 'bg-brand-teal/20 text-brand-teal'
                               : s === 'draft'
                               ? 'bg-yellow-100 text-yellow-800'
                               : s === 'paused'
@@ -363,7 +363,7 @@ const CampaignsInterface = () => {
                             onClick={() => handleScheduleCampaign(campaign.id)}
                             title="Schedule campaign"
                           >
-                            <CalendarClock className="w-4 h-4 text-emerald-600" />
+                            <CalendarClock className="w-4 h-4 text-brand-teal" />
                           </button>
                         );
                       }
@@ -397,7 +397,7 @@ const CampaignsInterface = () => {
                         type="datetime-local"
                         value={scheduleModal.date}
                         onChange={(e) => setScheduleModal(m => ({ ...m, date: e.target.value }))}
-                        className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-brand-teal focus:border-brand-teal"
                       />
                       <p className="text-xs text-gray-500 mt-1">If left blank, next business day is used.</p>
                     </div>

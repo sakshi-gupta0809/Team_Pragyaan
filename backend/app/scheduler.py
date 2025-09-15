@@ -4,6 +4,7 @@ Handles weekend and holiday-aware scheduling for campaigns and follow-ups.
 """
 import logging
 from datetime import datetime, timedelta, time
+import json
 from typing import List, Optional, Dict, Any, Tuple
 import os
 from collections import deque
@@ -251,23 +252,140 @@ def schedule_campaign_emails(
         recipient_name = contact.name or ""
         recipient_company = contact.company or ""
         recipient_category = (contact.category or "other").lower()
+        
+        # Extract additional data from extra_data or contact fields
+        extra_data = contact.extra_data or {}
+        first_name = extra_data.get("first_name", "")
+        if not first_name and recipient_name:
+            first_name = recipient_name.split()[0]
+        
+        last_name = extra_data.get("last_name", "")
+        if not last_name and recipient_name and " " in recipient_name:
+            last_name = recipient_name.split(" ", 1)[1]
+        
+        # We now store both original and standardized key formats in extra_data
+        # Try multiple variations to ensure we get the data regardless of format
+        
+        # Extract city information
+        poc_city = (
+            extra_data.get("POC City") or
+            extra_data.get("poc_city") or
+            extra_data.get("City") or
+            extra_data.get("city") or
+            ""
+        )
+        
+        # Extract state information
+        poc_state = (
+            extra_data.get("POC State") or
+            extra_data.get("poc_state") or
+            extra_data.get("State") or
+            extra_data.get("state") or
+            ""
+        )
+        
+        # Extract company name with fallbacks
+        company_name = (
+            extra_data.get("Company Name") or
+            extra_data.get("company_name") or
+            recipient_company or
+            ""
+        )
+        
+        # Extract industry information with fallbacks
+        industry = (
+            contact.industry or
+            extra_data.get("Industry") or
+            extra_data.get("industry") or
+            ""
+        )
+        job_title = extra_data.get("job_title", contact.designation or "")
+        designation = contact.designation or job_title
 
         subject = (template.subject or "")
         body = (template.body or "")
 
-        # Replace common placeholders
-        subject = (subject
-            .replace('{{name}}', recipient_name)
-            .replace('{{company}}', recipient_company)
-            .replace('{name}', recipient_name)
-            .replace('{company}', recipient_company)
-        )
-        body = (body
-            .replace('{{name}}', recipient_name)
-            .replace('{{company}}', recipient_company)
-            .replace('{name}', recipient_name)
-            .replace('{company}', recipient_company)
-        )
+        # Debug: Print all available extra_data for this contact
+        logger.info(f"DEBUG - Contact {contact.id} ({contact.email}) - Full extra_data: {json.dumps(extra_data, indent=2)}")
+        logger.info(f"DEBUG - Extracted field values:")
+        logger.info(f"  company_name: '{company_name}'")
+        logger.info(f"  industry: '{industry}'")
+        logger.info(f"  poc_city: '{poc_city}'")
+        logger.info(f"  poc_state: '{poc_state}'")
+        
+        # Create comprehensive placeholder mapping
+        placeholder_map = {
+            # Basic placeholders
+            '{{name}}': recipient_name,
+            '{{company}}': recipient_company,
+            '{name}': recipient_name,
+            '{company}': recipient_company,
+            
+            # Detailed placeholders
+            '{{first_name}}': first_name,
+            '{{last_name}}': last_name,
+            '{{company_name}}': company_name,
+            '{{industry}}': industry,
+            '{{job_title}}': job_title,
+            '{{designation}}': designation,
+            '{{POC City}}': poc_city,
+            '{{POC State}}': poc_state,
+            '{{city}}': poc_city,
+            '{{state}}': poc_state,
+            '{{category}}': recipient_category,
+            
+            # Fallback variations
+            '{first_name}': first_name,
+            '{last_name}': last_name,
+            '{company_name}': company_name,
+            '{industry}': industry,
+            '{job_title}': job_title,
+            '{designation}': designation,
+            '{POC City}': poc_city,
+            '{POC State}': poc_state,
+            '{city}}': poc_city,
+            '{state}}': poc_state,
+            '{category}': recipient_category,
+        }
+        
+        # Debug: Log the template content before replacement
+        logger.info(f"DEBUG - Template before replacement:")
+        logger.info(f"  Subject: {subject}")
+        logger.info(f"  Body contains these placeholders: " + ", ".join([p for p in placeholder_map.keys() if p in body]))
+
+        # Create default values for empty placeholders
+        logger.info(f"DEBUG - Beginning placeholder replacement for {contact.email}")
+        default_values = {
+            "{{POC City}}": "your city",
+            "{POC City}": "your city",
+            "{{POC State}}": "your state",
+            "{POC State}": "your state",
+            "{{city}}": "your city",
+            "{city}": "your city",
+            "{{state}}": "your state",
+            "{state}": "your state",
+            "{{industry}}": "your industry",
+            "{industry}": "your industry",
+            "{{company_name}}": recipient_company or "your company",
+            "{company_name}": recipient_company or "your company"
+        }
+        
+        # Replace all placeholders in subject and body
+        for placeholder, value in placeholder_map.items():
+            if placeholder in body:
+                logger.info(f"DEBUG - Found placeholder in body: {placeholder}, value: '{value}'")
+                
+            if value:  # If we have a value, use it
+                subject = subject.replace(placeholder, str(value))
+                body = body.replace(placeholder, str(value))
+            elif placeholder in default_values:  # If no value but we have a default
+                subject = subject.replace(placeholder, default_values[placeholder])
+                body = body.replace(placeholder, default_values[placeholder])
+            else:  # If no value and no default, replace with an empty string
+                if placeholder in body:
+                    logger.info(f"DEBUG - Replacing empty placeholder: {placeholder} with empty string")
+                subject = subject.replace(placeholder, "")
+                body = body.replace(placeholder, "")
 
         # Ensure greeting and a courteous closing if missing
         trimmed_body = body.strip()
@@ -345,27 +463,47 @@ def schedule_campaign_emails(
     
     return scheduled_count
 
-def process_scheduled_emails(db: Session, max_to_process: Optional[int] = None) -> Tuple[int, List[Dict[str, Any]]]:
+def process_scheduled_emails(db: Session, max_to_process: Optional[int] = None, due_schedules: Optional[List] = None) -> Tuple[int, List[Dict[str, Any]]]:
     """
     Process emails scheduled to be sent now or in the past.
     Returns the number of emails processed and a list of processed emails.
+    
+    Args:
+        db: Database session
+        max_to_process: Maximum number of emails to process in this batch
+        due_schedules: Optional pre-filtered list of schedules to process (bypass time-based filtering)
     """
     now = datetime.now()
     
-    # Find schedules due for sending
-    # Join EmailLog and optionally Contact to skip unsubscribed/cancelled
-    from .models import Contact  # local import to avoid cycle at module import
-    due_schedules = db.query(Schedule).join(
-        Schedule.email_log
-    ).outerjoin(
-        Contact, EmailLog.contact_id == Contact.id
-    ).filter(
-        Schedule.send_time <= now,
-        Schedule.is_sent == False,
-        EmailLog.status.in_(["pending", "failed"]),
-        # Exclude unsubscribed contacts if known
-        ((Contact.id == None) | (Contact.unsubscribed == False))
-    ).all()
+    # Debug: Check total schedules in database
+    total_schedules = db.query(Schedule).count()
+    total_email_logs = db.query(EmailLog).count()
+    pending_email_logs = db.query(EmailLog).filter(EmailLog.status == "pending").count()
+    scheduled_email_logs = db.query(EmailLog).filter(EmailLog.status == "scheduled").count()
+    failed_email_logs = db.query(EmailLog).filter(EmailLog.status == "failed").count()
+    sent_email_logs = db.query(EmailLog).filter(EmailLog.status == "sent").count()
+    
+    logger.info(f"Email processor debug - Total schedules: {total_schedules}, Total email logs: {total_email_logs}")
+    logger.info(f"Email status breakdown - Pending: {pending_email_logs}, Scheduled: {scheduled_email_logs}, Failed: {failed_email_logs}, Sent: {sent_email_logs}")
+    
+    # If due_schedules is not provided, find schedules due for sending based on time
+    if due_schedules is None:
+        # Join EmailLog and optionally Contact to skip unsubscribed/cancelled
+        from .models import Contact  # local import to avoid cycle at module import
+        
+        due_schedules = db.query(Schedule).join(
+            Schedule.email_log
+        ).outerjoin(
+            Contact, EmailLog.contact_id == Contact.id
+        ).filter(
+            Schedule.send_time <= now,
+            Schedule.is_sent == False,
+            EmailLog.status.in_(["pending", "failed", "scheduled"]),
+            # Exclude unsubscribed contacts if known
+            ((Contact.id == None) | (Contact.unsubscribed == False))
+        ).all()
+    
+    logger.info(f"Email processor found {len(due_schedules)} due schedules")
     
     if not due_schedules:
         return 0, []
@@ -441,15 +579,9 @@ async def process_now(limit: int = 100, db: Session = Depends(get_db)):
     }
 
 def init_scheduler():
-    """
-    Initialize the scheduler.
-    """
-    logger.info("Initializing email scheduler with business-day awareness")
-    return True
-
+    """Initialize the scheduler when the application starts."""
+    logger.info("Initializing email scheduler")
+    
 def shutdown_scheduler():
-    """
-    Shutdown the scheduler.
-    """
+    """Shutdown the scheduler when the application stops."""
     logger.info("Shutting down email scheduler")
-    return True

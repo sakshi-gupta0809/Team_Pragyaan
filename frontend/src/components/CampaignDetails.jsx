@@ -42,7 +42,13 @@ const CampaignDetails = ({ campaignId, onBack }) => {
         const res = await fetch(`http://localhost:8000/campaigns/${campaignId}/templates/`, { headers: { 'Accept': 'application/json' } });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Failed to load templates');
-        const mapped = (data || []).map(t => ({ id: t.id, categoryId: t.category || 'other', subject: t.subject || '', body: t.body || '' }));
+        const mapped = (data || []).map(t => ({
+          id: t.id,
+          categoryId: t.category || 'other',
+          subject: t.subject || '',
+          body: t.body || '',
+          step: t.step || 1
+        }));
         setTemplates({ loading: false, data: mapped, error: null, saving: false });
       } catch (e) {
         setTemplates({ loading: false, data: [], error: e.message, saving: false });
@@ -140,7 +146,13 @@ const CampaignDetails = ({ campaignId, onBack }) => {
                 setTemplates(s => ({ ...s, loading: true }));
                 const res = await fetch(`http://localhost:8000/campaigns/${campaignId}/templates/`, { headers: { 'Accept': 'application/json' } });
                 const data = await res.json();
-                const mapped = (data || []).map(t => ({ id: t.id, categoryId: t.category || 'other', subject: t.subject || '', body: t.body || '' }));
+                const mapped = (data || []).map(t => ({
+                  id: t.id,
+                  categoryId: t.category || 'other',
+                  subject: t.subject || '',
+                  body: t.body || '',
+                  step: t.step || 1
+                }));
                 setTemplates({ loading: false, data: mapped, error: null, saving: false });
               } catch (e) {
                 setTemplates(s => ({ ...s, loading: false, error: 'Failed to reload templates' }));
@@ -163,7 +175,17 @@ const CampaignDetails = ({ campaignId, onBack }) => {
                   const res = await fetch(`http://localhost:8000/api/neutrino/campaigns/${campaignId}/categories/approve`, { method: 'POST', headers: { 'Accept': 'application/json' } });
                   const data = await res.json();
                   if (data && data.templates) {
-                    setTemplates({ loading: false, data: data.templates.map(t => ({ categoryId: t.categoryId, subject: t.subject, body: t.body })), error: null, saving: false });
+                    setTemplates({
+                      loading: false,
+                      data: data.templates.map(t => ({
+                        categoryId: t.categoryId,
+                        subject: t.subject,
+                        body: t.body,
+                        step: t.step || 1
+                      })),
+                      error: null,
+                      saving: false
+                    });
                   } else {
                     setTemplates(s => ({ ...s, loading: false }));
                   }
@@ -177,13 +199,21 @@ const CampaignDetails = ({ campaignId, onBack }) => {
             </button>
           </div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {templates.data.map((tpl, idx) => (
-            <div key={idx} className="border border-gray-200 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-gray-500">Category</div>
-                <div className="flex items-center space-x-2">
-                  <div className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">{tpl.categoryId}</div>
+        {/* Group templates by initial and follow-ups */}
+        <div className="mb-4">
+          <h4 className="text-md font-medium text-gray-800 mb-2">Initial Emails</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {templates.data
+              .filter(tpl => !tpl.step || tpl.step === 1)
+              .map((tpl, idx) => (
+                <div key={idx} className="border border-gray-200 rounded-xl p-4 border-l-4 border-l-blue-500">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center">
+                      <div className="text-sm text-gray-500 mr-2">Category</div>
+                      <div className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Initial Email</div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">{tpl.categoryId}</div>
                   {tpl.id && (
                     <button
                       title="Delete template"
@@ -241,9 +271,177 @@ const CampaignDetails = ({ campaignId, onBack }) => {
                 >
                   <Wand2 className="w-3 h-3 mr-1" /> Regenerate
                 </button>
+                <button
+                  onClick={async () => {
+                    // Set local loading state for this button
+                    const loadingButton = document.getElementById(`follow-up-btn-${idx}`);
+                    if (loadingButton) {
+                      loadingButton.disabled = true;
+                      loadingButton.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-amber-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Generating...';
+                    }
+                    
+                    try {
+                      // First get the current template to use as reference
+                      const templateData = {
+                        categoryId: tpl.categoryId,
+                        subject: tpl.subject,
+                        body: tpl.body
+                      };
+                      
+                      // Call the follow-up generation API with the template data
+                      const res = await fetch(`http://localhost:8000/api/neutrino/campaigns/${campaignId}/generate-followups/`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({ template: templateData })
+                      });
+                      
+                      if (!res.ok) throw new Error('Failed to generate follow-up');
+                      
+                      // Refresh templates after generating follow-up
+                      const templatesRes = await fetch(`http://localhost:8000/campaigns/${campaignId}/templates/`, {
+                        headers: { 'Accept': 'application/json' }
+                      });
+                      const templatesData = await templatesRes.json();
+                      const mapped = (templatesData || []).map(t => ({
+                        id: t.id,
+                        categoryId: t.category || 'other',
+                        subject: t.subject || '',
+                        body: t.body || '',
+                        step: t.step || 1
+                      }));
+                      setTemplates({ loading: false, data: mapped, error: null, saving: false });
+                      
+                      // Show success message
+                      const msgEl = document.createElement('div');
+                      msgEl.className = 'text-xs text-green-600 mt-1';
+                      msgEl.innerHTML = 'Follow-up generated successfully!';
+                      const parentDiv = loadingButton ? loadingButton.parentElement : null;
+                      if (parentDiv) {
+                        parentDiv.appendChild(msgEl);
+                        setTimeout(() => {
+                          if (parentDiv.contains(msgEl)) {
+                            parentDiv.removeChild(msgEl);
+                          }
+                        }, 3000);
+                      }
+                      
+                    } catch (e) {
+                      // Create and show error message
+                      setTemplates(s => ({ ...s, error: `Failed to generate follow-up: ${e.message}` }));
+                      
+                      // Show error message under the button
+                      const msgEl = document.createElement('div');
+                      msgEl.className = 'text-xs text-red-600 mt-1';
+                      msgEl.innerHTML = `Error: ${e.message}`;
+                      const parentDiv = loadingButton ? loadingButton.parentElement : null;
+                      if (parentDiv) {
+                        parentDiv.appendChild(msgEl);
+                        setTimeout(() => {
+                          if (parentDiv.contains(msgEl)) {
+                            parentDiv.removeChild(msgEl);
+                          }
+                        }, 5000);
+                      }
+                    } finally {
+                      // Reset button state
+                      if (loadingButton) {
+                        loadingButton.disabled = false;
+                        loadingButton.innerHTML = '<svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg> Generate Follow-up';
+                      }
+                    }
+                  }}
+                  id={`follow-up-btn-${idx}`}
+                  className="px-3 py-1 text-xs rounded-lg bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200 flex items-center"
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" /> Generate Follow-up
+                </button>
               </div>
-            </div>
-          ))}
+                </div>
+              ))}
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <h4 className="text-md font-medium text-gray-800 mb-2">Follow-up Emails</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {templates.data
+              .filter(tpl => tpl.step && tpl.step > 1)
+              .sort((a, b) => a.id - b.id) // Sort by ID to ensure consistent order
+              .map((tpl, idx) => (
+                <div key={idx} className="border border-gray-200 rounded-xl p-4 border-l-4 border-l-amber-500">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center">
+                      <div className="text-sm text-gray-500 mr-2">Category</div>
+                      <div className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                        Follow-up #{idx + 1}
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">{tpl.categoryId}</div>
+                      {tpl.id && (
+                        <button
+                          title="Delete template"
+                          className="p-1 rounded hover:bg-red-50"
+                          onClick={async () => {
+                            if (!window.confirm('Delete this template?')) return;
+                            try {
+                              const res = await fetch(`/api/templates/${tpl.id}`, { method: 'DELETE', headers: { 'Accept': 'application/json' } });
+                              if (!res.ok) throw new Error('Failed to delete template');
+                              setTemplates(s => ({ ...s, data: s.data.filter(t => t.id !== tpl.id) }));
+                            } catch (e) {
+                              alert('Failed to delete template');
+                            }
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4 text-red-600" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-2 text-sm"
+                    placeholder="Subject"
+                    value={tpl.subject}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTemplates(s => ({ ...s, data: s.data.map((t) => t.id === tpl.id ? { ...t, subject: val } : t) }));
+                    }}
+                  />
+                  <textarea
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm h-32"
+                    placeholder="Body"
+                    value={tpl.body}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTemplates(s => ({ ...s, data: s.data.map((t) => t.id === tpl.id ? { ...t, body: val } : t) }));
+                    }}
+                  />
+                  <div className="flex justify-end space-x-2 mt-2">
+                    <button
+                      onClick={async () => {
+                        // regenerate this category via backend
+                        try {
+                          const res = await fetch(`http://localhost:8000/api/neutrino/campaigns/${campaignId}/categories/${tpl.categoryId}/regenerate`, {
+                            method: 'POST',
+                            headers: { 'Accept': 'application/json' }
+                          });
+                          const data = await res.json();
+                          if (data?.template) {
+                            setTemplates(s => ({ ...s, data: s.data.map((t) => t.id === tpl.id ? { ...t, subject: data.template.subject, body: data.template.body } : t) }));
+                          }
+                        } catch (e) {}
+                      }}
+                      className="px-3 py-1 text-xs rounded-lg border hover:bg-gray-50 flex items-center"
+                    >
+                      <Wand2 className="w-3 h-3 mr-1" /> Regenerate
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
         </div>
         <div className="flex justify-end mt-3">
           <button

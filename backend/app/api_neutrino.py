@@ -26,6 +26,9 @@ from .contact_categorization import categorize_designation
 
 from .database import get_db
 
+# Initialize template generator
+template_generator = TemplateGenerator()
+
 # Define paths for data and output
 DATA_DIR = PathLib(__file__).parent.parent / "data"
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -211,6 +214,17 @@ async def create_campaign(
                     categories["other"]["count"] += 1
                     category = "other"
                 
+                # Collect all extra data from the Excel columns
+                extra_data = {}
+                for col_name in df.columns:
+                    # Skip the standard fields we already handle
+                    if col_name not in ['name', 'email', 'job title', 'title', 'designation', 'position', 'role',
+                                        'company', 'organization', 'company name', 'full name', 'contact name',
+                                        'person name', 'email address', 'contact email', 'first', 'last']:
+                        if pd.notna(row[col_name]):
+                            # Store the value with the original column name
+                            extra_data[col_name] = str(row[col_name])
+                
                 # Add to contacts list
                 contacts.append({
                     "id": contact_id,
@@ -218,7 +232,8 @@ async def create_campaign(
                     "email": email,
                     "job_title": job_title or "Unknown",
                     "company": company or "Unknown",
-                    "category": category
+                    "category": category,
+                    "extra_data": extra_data
                 })
                 contact_id += 1
                 
@@ -378,6 +393,12 @@ async def create_campaign(
                                 existing_contact.category = contact_data.get("category", "other")
                                 existing_contact.status = "active"
                                 existing_contact.last_contacted = datetime.now()
+                                
+                                # Update extra_data field for existing contacts
+                                if "extra_data" in contact_data and contact_data["extra_data"]:
+                                    existing_contact.extra_data = contact_data["extra_data"]
+                                    logger.info(f"Updated extra_data for contact {email} with {len(contact_data['extra_data'])} fields")
+                                
                                 contacts_saved += 1
                                 logger.info(f"Updated existing contact with email {email} for campaign {campaign.id}")
                             elif not existing_contact:
@@ -391,7 +412,8 @@ async def create_campaign(
                                     campaign_id=campaign.id,
                                     unsubscribed=False,
                                     status="active",
-                                    last_contacted=datetime.now()
+                                    last_contacted=datetime.now(),
+                                    extra_data=contact_data.get("extra_data", {})
                                 )
                                 db.add(db_contact)
                                 contacts_saved += 1
@@ -1212,6 +1234,7 @@ async def approve_schedule(
     Approve the schedule for a campaign.
     This creates EmailLog and Schedule rows so emails can actually send.
     """
+    logger.info(f"Approve schedule called for campaign {campaign_id} with data: {data}")
     try:
         # Validate campaign exists
         campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
@@ -1413,3 +1436,145 @@ async def test_database_connection(
             "database_connected": False,
             "error": str(e)
         }, status_code=500)
+
+
+@router.post("/campaigns/{campaign_id}/generate-followups/")
+async def generate_followup_templates(
+    campaign_id: int = Path(..., gt=0),
+    data: Dict[str, Any] = Body(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate follow-up email templates for a campaign.
+    """
+    try:
+        # Get campaign
+        campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+        
+        step = data.get("step", 2)  # Default to follow-up 1
+        categories = data.get("categories", [])
+        
+        if not categories:
+            # Get categories from campaign contacts
+            categories = list(set([c.category for c in campaign.contacts if c.category]))
+        
+        templates = {}
+        
+        for category in categories:
+            try:
+                # Generate follow-up template for this category and step
+                template_data = template_generator.generate_template_for_category(
+                    category=category,
+                    scenario=campaign.scenario or "cold_outreach",
+                    step=step,
+                    additional_context={
+                        "campaign_name": campaign.name,
+                        "campaign_description": campaign.description,
+                        "follow_up_step": step
+                    }
+                )
+                
+                templates[category] = {
+                    step: template_data
+                }
+                
+                # Save template to database
+                email_template = EmailTemplate(
+                    subject=template_data["subject"],
+                    body=template_data["body"],
+                    category=category,
+                    step=step,
+                    campaign_id=campaign_id
+                )
+                db.add(email_template)
+                
+            except Exception as e:
+                logger.error(f"Failed to generate template for category {category}: {str(e)}")
+                # Continue with other categories
+                continue
+        
+        db.commit()
+        
+        return JSONResponse({
+            "success": True,
+            "templates": templates,
+            "categories": categories,
+            "step": step
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to generate follow-up templates: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate follow-up templates: {str(e)}")
+
+
+@router.post("/campaigns/{campaign_id}/regenerate-template/")
+async def regenerate_template(
+    campaign_id: int = Path(..., gt=0),
+    data: Dict[str, Any] = Body(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Regenerate a specific email template.
+    """
+    try:
+        # Get campaign
+        campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+        
+        logger.info(f"Regenerate template request data: {data}")
+        category = data.get("category")
+        step = data.get("step", 1)
+        template_type = data.get("template_type", "initial")  # initial or followup
+        
+        logger.info(f"Extracted category: {category}, step: {step}, template_type: {template_type}")
+        
+        if not category:
+            raise HTTPException(status_code=400, detail="Category is required")
+        
+        # Generate new template
+        template_data = template_generator.generate_template_for_category(
+            category=category,
+            scenario=campaign.scenario or "cold_outreach",
+            step=step,
+            additional_context={
+                "campaign_name": campaign.name,
+                "campaign_description": campaign.description,
+                "template_type": template_type
+            }
+        )
+        
+        # Update or create template in database
+        existing_template = db.query(EmailTemplate).filter(
+            EmailTemplate.campaign_id == campaign_id,
+            EmailTemplate.category == category,
+            EmailTemplate.step == step
+        ).first()
+        
+        if existing_template:
+            existing_template.subject = template_data["subject"]
+            existing_template.body = template_data["body"]
+        else:
+            new_template = EmailTemplate(
+                subject=template_data["subject"],
+                body=template_data["body"],
+                category=category,
+                step=step,
+                campaign_id=campaign_id
+            )
+            db.add(new_template)
+        
+        db.commit()
+        
+        return JSONResponse({
+            "success": True,
+            "template": template_data,
+            "category": category,
+            "step": step
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to regenerate template: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to regenerate template: {str(e)}")

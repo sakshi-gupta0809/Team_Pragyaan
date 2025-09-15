@@ -41,6 +41,8 @@ class Contact(Base):
     company = Column(String, nullable=True, index=True)
     industry = Column(String, nullable=True)
     category = Column(String, nullable=True, index=True)  # Clinical, IT, R&D, etc.
+    poc_city = Column(String, nullable=True)  # Added dedicated column for POC City
+    poc_state = Column(String, nullable=True)  # Added dedicated column for POC State
     extra_data = Column(JSON, nullable=True)  # store phone, location, etc.
     unsubscribed = Column(Boolean, default=False)  # unsubscribe flag
     last_contacted = Column(DateTime(timezone=True), nullable=True)  # Test field for auto migration

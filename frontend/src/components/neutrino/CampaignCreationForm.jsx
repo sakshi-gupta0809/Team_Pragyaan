@@ -59,7 +59,7 @@ const CampaignCreationForm = ({ onSubmit, isLoading }) => {
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-gray-900">Create New Campaign</h2>
-          <span className="inline-flex items-center text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Step 1 of 3</span>
+          
         </div>
         <p className="text-sm text-gray-500 mt-1">Name your campaign, set a start date, and upload your leads file. You can fine‑tune templates and scheduling next.</p>
       </div>
