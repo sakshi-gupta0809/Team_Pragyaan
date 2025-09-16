@@ -293,3 +293,54 @@ def update_campaign_status(
     db_campaign.status = status
     db.commit()
     return {"message": f"Campaign status updated to {status}"}
+
+@router.get("/campaigns/dashboard/metrics")
+def get_dashboard_metrics(db: Session = Depends(get_db)):
+    """Get campaign metrics for the dashboard display"""
+    try:
+        # Get all campaigns
+        campaigns = db.query(Campaign).all()
+        
+        # Calculate metrics
+        total_campaigns = len(campaigns)
+        total_emails_sent = sum(campaign.recipient_count or 0 for campaign in campaigns)
+        total_opens = sum(campaign.open_count or 0 for campaign in campaigns)
+        total_clicks = sum(campaign.click_count or 0 for campaign in campaigns)
+        
+        # Calculate rates
+        open_rate = 0
+        click_rate = 0
+        
+        if total_emails_sent > 0:
+            open_rate = round((total_opens / total_emails_sent) * 100)
+            click_rate = round((total_clicks / total_emails_sent) * 100)
+        
+        # Get recent campaigns (most recently created first)
+        recent_campaigns = db.query(Campaign).order_by(Campaign.created_at.desc()).limit(5).all()
+        
+        # Format recent campaigns for response
+        recent_campaigns_formatted = []
+        for campaign in recent_campaigns:
+            campaign_data = {
+                "id": campaign.id,
+                "name": campaign.name,
+                "status": campaign.status,
+                "recipient_count": campaign.recipient_count or 0,
+                "open_count": campaign.open_count or 0,
+                "click_count": campaign.click_count or 0,
+                "created_at": campaign.created_at.isoformat() if campaign.created_at else None
+            }
+            recent_campaigns_formatted.append(campaign_data)
+        
+        # Prepare response
+        return {
+            "total_campaigns": total_campaigns,
+            "emails_sent": total_emails_sent,
+            "open_rate": open_rate,
+            "click_rate": click_rate,
+            "recent_campaigns": recent_campaigns_formatted
+        }
+        
+    except Exception as e:
+        print(f"Error fetching dashboard metrics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch dashboard metrics: {str(e)}")

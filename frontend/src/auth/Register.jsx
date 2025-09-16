@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Mail, Lock, User, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { apiFetch } from '../api'
+import logoImage from '../assets/logo.png'
 
 const Register = ({ onSwitch, onSuccess }) => {
   const [name, setName] = useState('')
@@ -85,12 +86,12 @@ const Register = ({ onSwitch, onSuccess }) => {
       <div className="w-full max-w-xl">
         <motion.div initial={{ opacity: 0, scale: 0.98, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }} className="relative z-10 bg-white/80 backdrop-blur rounded-3xl shadow-xl p-6 sm:p-8 border border-white/60">
           <div className="flex items-center gap-3 mb-6">
-            <motion.div initial={{ rotate: -8 }} animate={{ rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 12 }} className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-emerald-600 shadow-lg shadow-emerald-200 grid place-items-center">
-              <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9" opacity=".15"/><path d="M8 13l2.5 2.5L16 10"/></svg>
+            <motion.div initial={{ rotate: -8 }} animate={{ rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 12 }} className="h-10 w-10 grid place-items-center">
+              <img src={logoImage} alt="Company Logo" className="h-full w-full object-contain" />
             </motion.div>
             <div>
-              <p className="text-sm text-gray-500">Join us</p>
-              <h2 className="text-2xl font-semibold">Create an Account</h2>
+              <h2 className="text-xl font-semibold">NeutriReach</h2>
+              <p className="text-sm text-gray-500">Join us | Create an Account</p>
             </div>
           </div>
           {/* Social Logins removed per request */}

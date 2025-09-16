@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronLeft, ChevronRight, ExternalLink, Trash2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, ChevronLeft, ChevronRight, ExternalLink, Trash2, Plus, X, ChevronDown } from 'lucide-react';
 
 const ContactsPage = () => {
   const [contacts, setContacts] = useState([]);
@@ -18,6 +19,14 @@ const ContactsPage = () => {
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [deletingId, setDeletingId] = useState(null);
+  const [showAddContactModal, setShowAddContactModal] = useState(false);
+  const [newContactInfo, setNewContactInfo] = useState({
+    name: '',
+    email: '',
+    linkedin: '',
+    company: '',
+    designation: ''
+  });
 
   // Debounce search term
   useEffect(() => {
@@ -138,250 +147,322 @@ const ContactsPage = () => {
     }
   };
 
+  const handleAddContact = async () => {
+    if (!newContactInfo.name || !newContactInfo.email) {
+      alert('Name and email are required');
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(newContactInfo)
+      });
+      
+      if (response.ok) {
+        const newContact = await response.json();
+        setContacts(prev => [newContact, ...prev]);
+        setTotalContacts(prev => prev + 1);
+        setNewContactInfo({
+          name: '',
+          email: '',
+          linkedin: '',
+          company: '',
+          designation: ''
+        });
+        setShowAddContactModal(false);
+      } else {
+        throw new Error('Failed to add contact');
+      }
+    } catch (err) {
+      alert('Failed to add contact. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <div className="px-4 py-4 w-full">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Contacts</h1>
-        <p className="text-emerald-700 mt-1">Manage your contacts and subscribers</p>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-2xl shadow-sm p-4 mb-6 overflow-hidden">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Search box */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search name or email..."
-              className="pl-10 w-full rounded-xl border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          {/* Campaign dropdown */}
-          <div>
-            <select
-              className="w-full rounded-xl border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              value={selectedCampaign}
-              onChange={(e) => setSelectedCampaign(e.target.value)}
-            >
-              <option value="">All Campaigns</option>
-              {campaigns.map((campaign) => (
-                <option key={campaign.id} value={campaign.id}>
-                  {campaign.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Status dropdown */}
-          <div>
-            <select
-              className="w-full rounded-xl border border-gray-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-            >
-              <option value="all">All Statuses</option>
-              <option value="subscribed">Subscribed</option>
-              <option value="unsubscribed">Unsubscribed</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Contacts Table */}
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden w-full">
-        <div className="p-4 border-b border-gray-200 bg-gray-50 text-sm text-gray-500">
-          <p>Scroll horizontally to view all contact information.</p>
-        </div>
-        {isLoading ? (
-          <div className="flex justify-center items-center p-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
-          </div>
-        ) : error ? (
-          <div className="p-8 text-center text-red-500">{error}</div>
-        ) : contacts.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            <p className="text-lg font-medium">No contacts found</p>
-            <p className="mt-1">Try adjusting your filters or add new contacts</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto w-full">
-            <table className="w-full divide-y divide-gray-200">
-              <thead>
-                <tr>
-                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-12 bg-green-100 rounded-tl-xl">
-                    ID
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-32 bg-green-100">
-                    Name
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-48 bg-green-100">
-                    Email
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-32 bg-green-100">
-                    Campaign
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-24 bg-green-100">
-                    Subscription
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-24 bg-green-100">
-                    LinkedIn
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-28 bg-green-100">
-                    Designation
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-28 bg-green-100">
-                    Company
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-24 bg-green-100">
-                    Category
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-28 bg-green-100">
-                    Last Contacted
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-24 bg-green-100 rounded-tr-xl">
-                    Status
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider w-16 bg-green-100 rounded-tr-xl">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {contacts.map((contact) => (
-                  <tr key={contact.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{contact.id}</td>
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900 truncate max-w-[120px]">{contact.name}</div>
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <div className="text-sm text-gray-500 truncate max-w-[180px]">{contact.email}</div>
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <div className="text-sm text-gray-500 truncate max-w-[120px]">{contact.campaign_name || 'No Campaign'}</div>
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      {contact.unsubscribed ? (
-                        <span className="px-1.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                          Unsub
-                        </span>
-                      ) : (
-                        <span className="px-1.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">
-                          Active
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                      {contact.linkedin_url ? (
-                        <a
-                          href={contact.linkedin_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-emerald-600 hover:text-emerald-800 flex items-center"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500 truncate max-w-[100px]">
-                      {contact.designation || '-'}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500 truncate max-w-[100px]">
-                      {contact.company || '-'}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500 truncate max-w-[80px]">
-                      {contact.category || '-'}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                      {contact.last_contacted ? new Date(contact.last_contacted).toLocaleDateString() : 'Never'}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                      {contact.status || '-'}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                      <button
-                        className="p-1 rounded hover:bg-red-50"
-                        title="Delete contact"
-                        onClick={() => deleteContact(contact.id)}
-                        disabled={deletingId === contact.id}
-                      >
-                        <Trash2 className={`w-4 h-4 ${deletingId === contact.id ? 'text-gray-400' : 'text-red-600'}`} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Pagination */}
-        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-          <div className="flex-1 flex justify-between sm:hidden">
-            <button
-              onClick={goToPreviousPage}
-              disabled={currentPage === 1}
-              className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
-                currentPage === 1 ? 'bg-gray-100 text-gray-400' : 'bg-white text-emerald-700 hover:bg-emerald-50'
-              }`}
-            >
-              Previous
-            </button>
-            <button
-              onClick={goToNextPage}
-              disabled={currentPage >= totalPages}
-              className={`ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
-                currentPage >= totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white text-emerald-700 hover:bg-emerald-50'
-              }`}
-            >
-              Next
-            </button>
-          </div>
-          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm text-gray-700">
-                Showing <span className="font-medium">{totalContacts > 0 ? startRecord : 0}</span> to{' '}
-                <span className="font-medium">{endRecord}</span> of{' '}
-                <span className="font-medium">{totalContacts}</span> results
-              </p>
-            </div>
-            <div>
-              <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                <button
-                  onClick={goToPreviousPage}
-                  disabled={currentPage === 1}
-                  className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 ${
-                    currentPage === 1 ? 'bg-gray-100 text-gray-400' : 'bg-white text-emerald-600 hover:bg-emerald-50'
-                  }`}
-                >
-                  <span className="sr-only">Previous</span>
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <div className="bg-green-100 border-green-200 text-gray-800 relative inline-flex items-center px-4 py-2 border text-sm font-medium">
-                  Page {currentPage} of {totalPages || 1}
+    <div className="min-h-screen bg-gray-900 text-white w-full overflow-x-hidden">
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div key="contacts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: .2 }}>
+          {/* Header */}
+          <motion.div className="bg-gray-800 border-b border-gray-700 rounded-b-3xl shadow-sm w-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: .2 }}>
+            <div className="w-full px-6 py-4 max-w-full">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-semibold">Contacts</h1>
                 </div>
-                <button
-                  onClick={goToNextPage}
-                  disabled={currentPage >= totalPages}
-                  className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 ${
-                    currentPage >= totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white text-emerald-600 hover:bg-emerald-50'
-                  }`}
-                >
-                  <span className="sr-only">Next</span>
-                  <ChevronRight className="h-5 w-5" />
+                <div className="flex items-center space-x-4">
+               
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Tab Navigation */}
+          <div className="bg-gray-800 border-b border-gray-700 mb-6 w-full">
+            <div className="w-full px-6 max-w-full">
+              <div className="flex space-x-8">
+                <button className="py-4 px-1 border-b-2 border-orange-500 text-white font-medium">
+                  All Contacts
                 </button>
-              </nav>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+
+          {/* Main Content */}
+          <div className="w-full px-6 pb-6 max-w-full">
+            {/* Search and Filter Bar */}
+            <div className="flex items-center justify-between mb-6 w-full">
+              <div className="flex items-center space-x-4 flex-wrap gap-4">
+                {/* Search box */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    placeholder="Search name or email..."
+                    className="pl-10 pr-4 py-2 border border-gray-600 rounded-xl w-80 focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-gray-700 text-white"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+
+                {/* Campaign dropdown */}
+                <div className="relative">
+                  <select
+                    className="appearance-none bg-gray-700 border border-gray-600 rounded-xl px-4 py-2 pr-10 focus:ring-2 focus:ring-orange-500 focus:border-transparent text-white"
+                    value={selectedCampaign}
+                    onChange={(e) => setSelectedCampaign(e.target.value)}
+                  >
+                    <option value="">All Campaigns</option>
+                    {campaigns.map((campaign) => (
+                      <option key={campaign.id} value={campaign.id} className="bg-gray-800">
+                        {campaign.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                </div>
+
+                {/* Status dropdown */}
+                <div className="relative">
+                  <select
+                    className="appearance-none bg-gray-700 border border-gray-600 rounded-xl px-4 py-2 pr-10 focus:ring-2 focus:ring-orange-500 focus:border-transparent text-white"
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="subscribed">Subscribed</option>
+                    <option value="unsubscribed">Unsubscribed</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <span className="text-sm text-gray-400">
+                  {totalContacts > 0 ? `${startRecord}-${endRecord} of ${totalContacts}` : '0-0 of 0'}
+                </span>
+                <div className="flex items-center space-x-1">
+                  <button 
+                    className={`p-1 ${currentPage > 1 ? 'hover:bg-gray-700 text-gray-300' : 'text-gray-600 cursor-not-allowed'} rounded`}
+                    onClick={goToPreviousPage}
+                    disabled={currentPage <= 1}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button className="px-3 py-1 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600">{currentPage}</button>
+                  <button 
+                    className={`p-1 ${currentPage < totalPages ? 'hover:bg-gray-700 text-gray-300' : 'text-gray-600 cursor-not-allowed'} rounded`}
+                    onClick={goToNextPage}
+                    disabled={currentPage >= totalPages}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Contacts Table */}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: .2 }} className="bg-gray-800 rounded-3xl shadow-sm overflow-hidden border border-gray-700 w-full">
+              {/* Loading State */}
+              {isLoading ? (
+                <div className="flex justify-center items-center p-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+                </div>
+              ) : error ? (
+                <div className="p-8 text-center text-red-400">{error}</div>
+              ) : contacts.length === 0 ? (
+                <div className="px-6 py-8 text-center text-gray-500">
+                  <p className="text-lg font-medium">No contacts found</p>
+                  <p className="mt-1">Try adjusting your filters or add new contacts</p>
+                </div>
+              ) : (
+                <div
+                  className="overflow-x-auto w-full custom-scrollbar"
+                  style={{
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: '#4b5563 #1f2937'
+                  }}
+                >
+                  <div className="min-w-[1200px]">
+                    {/* Table Header */}
+                    <div className="grid grid-cols-12 gap-3 px-6 py-4 bg-gradient-to-r from-gray-800 to-gray-700 border-b border-gray-600 text-sm font-semibold tracking-wide text-gray-200 rounded-t-3xl w-full shadow-sm">
+                      <div className="col-span-1 text-center">
+                        <span className="border-b-2 border-orange-500 pb-1">ID</span>
+                      </div>
+                      <div className="col-span-1">
+                        <span className="border-b-2 border-orange-500 pb-1">Name</span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="border-b-2 border-orange-500 pb-1">Email</span>
+                      </div>
+                      <div className="col-span-1">
+                        <span className="border-b-2 border-orange-500 pb-1">Campaign</span>
+                      </div>
+                      <div className="col-span-1 text-center">
+                        <span className="bg-gray-700/70 px-2 py-1 rounded-lg inline-block w-full text-xs">Status</span>
+                      </div>
+                      <div className="col-span-1 text-center">
+                        <span className="bg-emerald-900/30 text-emerald-300 px-2 py-1 rounded-lg inline-block w-full text-xs">LinkedIn</span>
+                      </div>
+                      <div className="col-span-1 text-center">
+                        <span className="border-b-2 border-orange-500 pb-1">Job</span>
+                      </div>
+                      <div className="col-span-1 text-center">
+                        <span className="border-b-2 border-orange-500 pb-1">Company</span>
+                      </div>
+                      <div className="col-span-1 text-center">
+                        <span className="bg-amber-900/30 text-amber-300 px-2 py-1 rounded-lg inline-block w-full text-xs">Category</span>
+                      </div>
+                      <div className="col-span-1 text-center">
+                        <span className="bg-orange-900/30 text-orange-300 px-2 py-1 rounded-lg inline-block w-full text-xs">Last Contact</span>
+                      </div>
+                      <div className="col-span-1 text-right pr-2">
+                        <span className="text-gray-400 text-xs">Actions</span>
+                      </div>
+                    </div>
+                    {/* Contact Rows */}
+                    {contacts.map((contact, index) => (
+                      <motion.div
+                        key={contact.id}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.25, delay: index * 0.05 }}
+                        className="grid grid-cols-12 gap-3 px-6 py-3 border-b border-gray-700 hover:bg-gray-700/70 hover:shadow-md transition-all duration-200 w-full"
+                      >
+                        <div className="col-span-1 flex items-center justify-center">
+                          <div className="text-sm text-gray-400">{contact.id}</div>
+                        </div>
+                        
+                        <div className="col-span-1">
+                          <div className="flex items-center space-x-2 w-full">
+                            <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
+                            <div className="min-w-0 w-full">
+                              <div className="font-medium text-white truncate w-full">{contact.name}</div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="col-span-2">
+                          <div className="text-sm text-gray-400 truncate w-full">{contact.email}</div>
+                        </div>
+                        
+                        <div className="col-span-1">
+                          <div className="text-sm text-gray-400 truncate w-full">{contact.campaign_name || 'No Campaign'}</div>
+                        </div>
+                        
+                        <div className="col-span-1 text-center">
+                          <motion.div
+                            className={`px-2 py-1 rounded-xl shadow-sm font-medium inline-flex justify-center w-full text-xs ${
+                              contact.unsubscribed
+                                ? "bg-red-900/20 text-red-400"
+                                : "bg-emerald-900/20 text-emerald-400"
+                            }`}
+                            whileHover={{ scale: 1.05 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            {contact.unsubscribed ? 'Unsub' : 'Active'}
+                          </motion.div>
+                        </div>
+                        
+                        <div className="col-span-1 text-center">
+                          <motion.div
+                            className="bg-emerald-900/20 px-2 py-1 rounded-xl shadow-sm font-medium text-emerald-400 inline-flex justify-center w-full"
+                            whileHover={{ scale: 1.05 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            {contact.linkedin_url ? (
+                              <a
+                                href={contact.linkedin_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-emerald-400 hover:text-emerald-300 flex items-center justify-center w-full"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            ) : (
+                              '-'
+                            )}
+                          </motion.div>
+                        </div>
+                        
+                        <div className="col-span-1 text-center">
+                          <div className="text-sm text-gray-400 truncate w-full">{contact.designation || '-'}</div>
+                        </div>
+                        
+                        <div className="col-span-1 text-center">
+                          <div className="text-sm text-gray-400 truncate w-full">{contact.company || '-'}</div>
+                        </div>
+                        
+                        <div className="col-span-1 text-center">
+                          <motion.div
+                            className="bg-amber-900/20 px-2 py-1 rounded-xl shadow-sm font-medium text-amber-400 inline-flex justify-center w-full"
+                            whileHover={{ scale: 1.05 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            {contact.category || '-'}
+                          </motion.div>
+                        </div>
+                        
+                        <div className="col-span-1 text-center">
+                          <motion.div
+                            className="bg-orange-900/20 px-2 py-1 rounded-xl shadow-sm font-medium text-orange-400 inline-flex justify-center w-full"
+                            whileHover={{ scale: 1.05 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            {contact.last_contacted ? new Date(contact.last_contacted).toLocaleDateString() : 'Never'}
+                          </motion.div>
+                        </div>
+                        
+                        <div className="col-span-1 flex items-center justify-end">
+                          <motion.button
+                            className="p-1.5 bg-gray-700/70 hover:bg-red-900/40 rounded-lg transition-colors shadow-sm"
+                            title="Delete contact"
+                            onClick={() => deleteContact(contact.id)}
+                            whileHover={{ scale: 1.1 }}
+                            transition={{ duration: 0.2 }}
+                            disabled={deletingId === contact.id}
+                          >
+                            <Trash2 className={`w-4 h-4 ${deletingId === contact.id ? 'text-gray-600' : 'text-red-400'}`} />
+                          </motion.button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+
+      
     </div>
   );
 };

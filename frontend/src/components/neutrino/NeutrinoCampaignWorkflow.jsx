@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react';
 import CampaignCreationForm from './CampaignCreationForm';
 import ContactCategorization from './ContactCategorization';
@@ -451,22 +452,30 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
   };
   
   return (
-    <div className="bg-white rounded-2xl shadow-md">
+    <AnimatePresence mode="wait" initial={false}>
+    <motion.div
+      key={currentStep}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+      className="bg-gray-800 text-white rounded-2xl shadow-md border border-gray-700"
+    >
       {toast.visible && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow ${toast.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow border ${toast.type === 'success' ? 'bg-green-900/70 text-green-100 border-green-700' : 'bg-red-900/70 text-red-100 border-red-700'}`}>
           <div className="flex items-center">
             <span className="text-sm">{toast.message}</span>
-            <button className={`ml-3 text-xs ${toast.type === 'success' ? 'text-green-700' : 'text-red-700'}`} onClick={() => setToast({ ...toast, visible: false })}>Dismiss</button>
+            <button className={`ml-3 text-xs ${toast.type === 'success' ? 'text-green-300' : 'text-red-300'}`} onClick={() => setToast({ ...toast, visible: false })}>Dismiss</button>
           </div>
         </div>
       )}
       {/* Back button */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-4 border-b border-gray-700">
         <button
           onClick={onClose}
-          className="text-gray-600 hover:text-gray-900 font-medium flex items-center"
+          className="text-gray-300 hover:text-white font-medium flex items-center"
         >
-          <ArrowLeft className="mr-2 h-4 w-4 text-brand-dark" />
+          <ArrowLeft className="mr-2 h-4 w-4 text-orange-400" />
           Back to Campaigns
         </button>
       </div>
@@ -482,37 +491,37 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
                     // Completed step
                     <>
                       <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                        <div className="h-0.5 w-full bg-brand-yellow"></div>
+                        <div className="h-0.5 w-full bg-orange-500"></div>
                       </div>
                       <div
-                        className="relative flex h-8 w-8 items-center justify-center rounded-full bg-brand-dark"
+                        className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gray-700 border border-gray-500"
                       >
-                        <CheckCircle className="h-5 w-5 text-white" />
+                        <CheckCircle className="h-5 w-5 text-orange-400" />
                       </div>
                     </>
                   ) : currentStep === step.id ? (
                     // Current step
                     <>
                       <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                        <div className="h-0.5 w-full bg-gray-200"></div>
+                        <div className="h-0.5 w-full bg-gray-700"></div>
                       </div>
                       <div
-                        className="relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-brand-yellow bg-white"
+                        className="relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-orange-500 bg-gray-900"
                         aria-current="step"
                       >
-                        <span className="h-2.5 w-2.5 rounded-full bg-brand-yellow" aria-hidden="true"></span>
+                        <span className="h-2.5 w-2.5 rounded-full bg-orange-500" aria-hidden="true"></span>
                       </div>
                     </>
                   ) : (
                     // Upcoming step
                     <>
                       <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                        <div className="h-0.5 w-full bg-gray-200"></div>
+                        <div className="h-0.5 w-full bg-gray-700"></div>
                       </div>
                       <div
-                        className="group relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-gray-300 bg-white"
+                        className="group relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-gray-600 bg-gray-800 text-gray-300"
                       >
-                        <span className="text-sm font-medium text-gray-500">{step.id}</span>
+                        <span className="text-sm font-medium">{step.id}</span>
                       </div>
                     </>
                   )}
@@ -523,14 +532,14 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
         </div>
 
         <div className="mt-4 mb-6">
-          <h2 className="text-xl font-bold text-gray-900">{steps.find(s => s.id === currentStep)?.name}</h2>
-          <p className="text-sm text-gray-500">{steps.find(s => s.id === currentStep)?.description}</p>
+          <h2 className="text-xl font-bold text-white">{steps.find(s => s.id === currentStep)?.name}</h2>
+          <p className="text-sm text-gray-400">{steps.find(s => s.id === currentStep)?.description}</p>
         </div>
       </div>
 
       {/* Error display */}
       {error && (
-        <div className="mx-6 mb-4 p-4 bg-red-50 border-l-4 border-red-400 text-red-700 rounded-r-lg">
+        <div className="mx-6 mb-4 p-4 bg-red-900/40 border-l-4 border-red-600 text-red-200 rounded-r-lg">
           <div className="flex">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
@@ -546,9 +555,12 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
 
       {/* Main content - current step */}
       <div className="px-6 pb-6">
-        {renderCurrentStep()}
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+          {renderCurrentStep()}
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
+    </AnimatePresence>
   );
 };
 

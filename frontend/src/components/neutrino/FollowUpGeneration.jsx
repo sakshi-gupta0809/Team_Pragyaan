@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, RefreshCw, CheckCircle, Mail, Clock, Users, Sparkles, FileText } from 'lucide-react';
 
 const FollowUpGeneration = ({ 
@@ -188,21 +189,21 @@ const FollowUpGeneration = ({
     followUpTemplates[selectedCategory]?.[followUpStep] : null;
 
   return (
-    <div className="bg-white rounded-2xl shadow-md overflow-hidden">
-      <div className="p-6 border-b border-gray-200">
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="bg-gray-800 rounded-2xl shadow-md overflow-hidden border border-gray-700 text-white">
+      <div className="p-6 border-b border-gray-700">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <FileText className="h-6 w-6 text-dark" />
-            <h2 className="text-2xl font-bold text-gray-800">Follow-up Email Templates</h2>
+            <FileText className="h-6 w-6 text-orange-400" />
+            <h2 className="text-2xl font-bold text-white">Follow-up Email Templates</h2>
           </div>
           <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-gray-400">
               Follow-up #{followUpStep - 1}
             </span>
             <select
               value={followUpStep}
               onChange={(e) => setFollowUpStep(parseInt(e.target.value))}
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary"
+              className="px-3 py-1 border border-gray-600 rounded-lg text-sm bg-gray-800 text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
             >
               <option value={2}>Follow-up 1</option>
               <option value={3}>Follow-up 2</option>
@@ -228,8 +229,8 @@ const FollowUpGeneration = ({
                   onClick={() => setSelectedCategory(categoryKey)}
                   className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
                     selectedCategory === categoryKey
-                      ? 'bg-primary text-dark ring-2 ring-offset-2 ring-primary'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      ? 'bg-orange-600 text-white ring-2 ring-offset-2 ring-orange-500'
+                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                   }`}
                 >
                   {categoryName}
@@ -241,7 +242,7 @@ const FollowUpGeneration = ({
 
         {/* Current category */}
         <div className="mb-6">
-          <div className="p-3 rounded-lg border bg-gray-100 text-gray-800 border-gray-200">
+          <div className="p-3 rounded-lg border bg-gray-900 text-gray-100 border-gray-700">
             <h3 className="font-medium">{selectedCategory} Recipients</h3>
             <p className="text-sm">{categories.find(c => {
               const categoryKey = typeof c === 'string' ? c : c.id || c.name;
@@ -252,14 +253,14 @@ const FollowUpGeneration = ({
 
         {/* Template editor */}
         {selectedCategory && currentTemplate ? (
-          <div className="mb-6 border rounded-xl overflow-hidden">
-            <div className="bg-gray-50 px-4 py-3 border-b flex justify-between items-center">
-              <h3 className="font-medium text-gray-700">Follow-up Email Template</h3>
+          <div className="mb-6 border rounded-xl overflow-hidden border-gray-700">
+            <div className="bg-gray-900 px-4 py-3 border-b border-gray-700 flex justify-between items-center">
+              <h3 className="font-medium text-white">Follow-up Email Template</h3>
               <div className="flex space-x-2">
                 <button
                   onClick={() => regenerateTemplate(selectedCategory, followUpStep)}
                   disabled={regenerating[`${selectedCategory}_${followUpStep}`]}
-                  className="inline-flex items-center px-3 py-1 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-xl text-dark bg-primary hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                  className="inline-flex items-center px-3 py-1 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-xl text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
                 >
                   {regenerating[`${selectedCategory}_${followUpStep}`] ? (
                     <>
@@ -277,13 +278,13 @@ const FollowUpGeneration = ({
             </div>
             
             <div className="p-4">
-              <div className="bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 prose max-w-none min-h-[200px] font-sans mb-4">
+              <div className="bg-gray-900 px-3 py-2 rounded-lg border border-gray-700 prose max-w-none min-h-[200px] font-sans mb-4 text-gray-100">
                 {/* Subject */}
                 <div className="font-medium mb-2">Subject: {currentTemplate.subject || 'No subject'}</div>
-                <div className="border-t border-gray-300 mb-2 pt-2"></div>
+                <div className="border-t border-gray-700 mb-2 pt-2"></div>
                 
                 {/* Add a note about placeholders */}
-                <div className="bg-gray-100 p-2 mb-3 text-xs rounded">
+                <div className="bg-gray-800 p-2 mb-3 text-xs rounded text-gray-300">
                   <p className="font-bold">Preview Note:</p>
                   <p>Highlighted text shows placeholders that will be replaced with actual data from Excel.</p>
                 </div>
@@ -292,7 +293,7 @@ const FollowUpGeneration = ({
                   {currentTemplate.body ? (
                     <div className="complete-email-template">
                       {/* Highlight the placeholder to show it will be replaced with actual data */}
-                      <p>Hi <span className="bg-gray-200 text-gray-800 px-1 rounded font-bold">{'{{first_name}}'}</span>,</p>
+                      <p>Hi <span className="bg-gray-700 text-gray-100 px-1 rounded font-bold">{'{{first_name}}'}</span>,</p>
                       
                       {/* Render HTML content safely with placeholder highlighting */}
                       <div
@@ -303,7 +304,7 @@ const FollowUpGeneration = ({
                               // Highlight placeholders
                               const highlightedParagraph = paragraph.replace(
                                 /\{\{([^}]+)\}\}/g,
-                                '<span class="bg-gray-200 text-gray-800 px-1 rounded font-bold">{{$1}}</span>'
+                                '<span class="bg-gray-700 text-gray-100 px-1 rounded font-bold">{{$1}}</span>'
                               );
                               return `<p>${highlightedParagraph}</p>`;
                             })
@@ -325,13 +326,13 @@ const FollowUpGeneration = ({
             </div>
           </div>
         ) : selectedCategory ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+          <div className="bg-gray-900 rounded-xl border border-gray-700 p-6 mb-6">
             <div className="text-center py-8">
               <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No follow-up template available for this category and step.</p>
+              <p className="text-gray-300">No follow-up template available for this category and step.</p>
               <button
                 onClick={() => regenerateTemplate(selectedCategory, followUpStep)}
-                className="mt-4 px-4 py-2 bg-primary text-dark rounded-lg hover:bg-primary-dark"
+                className="mt-4 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
               >
                 Generate Template
               </button>
@@ -341,18 +342,18 @@ const FollowUpGeneration = ({
 
         {/* Loading State */}
         {isLoading && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+          <div className="bg-gray-900 rounded-xl border border-gray-700 p-6 mb-6">
             <div className="text-center py-8">
               <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-4" />
-              <p className="text-gray-600">Generating follow-up templates...</p>
+              <p className="text-gray-300">Generating follow-up templates...</p>
             </div>
           </div>
         )}
 
         {/* Error State */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-red-700">{error}</p>
+          <div className="bg-red-900/40 border border-red-700 rounded-lg p-4 mb-6">
+            <p className="text-red-200">{error}</p>
           </div>
         )}
 
@@ -360,7 +361,7 @@ const FollowUpGeneration = ({
         <div className="flex justify-between">
           <button
             onClick={onBack}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+            className="inline-flex items-center px-4 py-2 border border-gray-600 text-gray-300 hover:bg-gray-700 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
           >
             <ArrowLeft className="mr-1.5 h-4 w-4" />
             Back to Templates
@@ -372,7 +373,7 @@ const FollowUpGeneration = ({
               onNext();
             }}
             disabled={!selectedCategory || !currentTemplate}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl shadow-sm text-dark bg-primary hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Continue to Schedule
             <ArrowRight className="ml-1.5 h-4 w-4" />
@@ -381,11 +382,11 @@ const FollowUpGeneration = ({
       </div>
 
       {/* Actions */}
-      <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
-        <div className="text-sm text-gray-500">
+      <div className="px-6 py-4 bg-gray-900 border-t border-gray-700 flex justify-between items-center">
+        <div className="text-sm text-gray-400">
           {Object.keys(followUpTemplates).length} of {categories.length} templates generated
           {error && (
-            <div className="mt-2 text-sm text-red-600">
+            <div className="mt-2 text-sm text-red-400">
               Error: {error}
             </div>
           )}
@@ -394,14 +395,14 @@ const FollowUpGeneration = ({
           <button
             onClick={generateFollowUpTemplates}
             disabled={isLoading}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-xl text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+            className="inline-flex items-center px-4 py-2 border border-gray-600 shadow-sm text-sm font-medium rounded-xl text-gray-300 bg-gray-800 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
           >
             <RefreshCw className={`mr-2 -ml-1 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             Regenerate All
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
