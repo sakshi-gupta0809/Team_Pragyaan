@@ -381,18 +381,53 @@ Instructions:
             # Extract the response content
             response_content = response.choices[0].message.content.strip()
             
-            # Try to parse as JSON first
+            # Parse the new format (Subject line followed by email body)
             try:
-                response_json = json.loads(response_content)
-                personalized_subject = response_json.get("subject", "")
-                personalized_body = response_json.get("body", "")
+                # Look for subject line at the beginning
+                subject_match = re.search(r'(?i)^Subject:?\s*(.+?)(?:\n|$)', response_content)
+                if subject_match:
+                    personalized_subject = subject_match.group(1).strip()
+                    
+                    # Extract everything after the subject line as the body
+                    subject_end = subject_match.end()
+                    personalized_body = response_content[subject_end:].strip()
+                    
+                    # If successful, return the parsed content
+                    if personalized_subject and personalized_body:
+                        return {
+                            "subject": personalized_subject,
+                            "body": personalized_body
+                        }
                 
-                # If either is empty, fall back to text parsing
-                if not personalized_subject or not personalized_body:
-                    raise ValueError("JSON response missing required fields")
-                
+                # If we couldn't parse the subject/body format, try JSON as fallback
+                if response_content.strip().startswith('{') and response_content.strip().endswith('}'):
+                    try:
+                        response_json = json.loads(response_content)
+                        personalized_subject = response_json.get("subject", "")
+                        
+                        # If JSON has intro/body/cta fields, combine them
+                        if "intro" in response_json and "body" in response_json:
+                            intro = response_json.get("intro", "")
+                            body = response_json.get("body", "")
+                            cta = response_json.get("cta", "")
+                            
+                            # Combine into a clean email format
+                            personalized_body = f"{intro}\n\n{body}\n\n{cta}"
+                        else:
+                            personalized_body = response_json.get("body", "")
+                        
+                        # If either is empty, fall back to text parsing
+                        if not personalized_subject or not personalized_body:
+                            raise ValueError("JSON response missing required fields")
+                        
+                        return {
+                            "subject": personalized_subject,
+                            "body": personalized_body
+                        }
+                    except Exception as e:
+                        logger.warning(f"Failed to parse response as JSON: {str(e)}")
             except Exception as e:
-                logger.warning(f"Failed to parse response as JSON: {str(e)}")
+                logger.warning(f"Failed to parse response format: {str(e)}")
                 
                 # Fall back to text parsing
                 # Look for subject line
