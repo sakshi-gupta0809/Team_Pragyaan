@@ -226,8 +226,8 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
         templates: data.templates || templates
       });
       
-      // Move to next step
-      setCurrentStep(4);
+      // Skip follow-up templates and go directly to scheduling
+      setCurrentStep(5);
       setToast({ visible: true, message: 'Templates saved', type: 'success' });
     } catch (err) {
       console.error("Error saving templates:", err);
@@ -242,8 +242,8 @@ const NeutrinoCampaignWorkflow = ({ onClose }) => {
       setError("Backend connection failed. Using existing templates for preview purposes.");
       setToast({ visible: true, message: 'Failed to save templates; using current', type: 'error' });
       
-      // Move to next step anyway
-      setCurrentStep(4);
+      // Skip follow-up templates and go directly to scheduling
+      setCurrentStep(5);
     } finally {
       setIsLoading(false);
     }
